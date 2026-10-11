@@ -40,7 +40,7 @@ Node 20 or newer.
 
 `node scripts/demo-home.mjs /tmp/acme` writes 41 Claude Code sessions (plus a few Codex and Gemini CLI ones) for a fictional team, dated September to October 2026, so run it with `--since all`. `test/demo.test.ts` checks roost recovers its exact totals.
 
-The images in `.github/assets/` are rendered from `FORCE_COLOR=1 node dist/src/cli.js usage --home /tmp/acme --top 6`. Screenshots and examples only ever use the demo team, never real logs.
+The images in `.github/assets/` are rendered from `FORCE_COLOR=1 node dist/src/cli.js usage --home /tmp/acme --top 5`, in the same frame as rookery's (transparent background, 2360 px wide, 13 px Space Mono). Screenshots and examples only ever use the demo team, never real logs.
 
 ## Pull requests
 
