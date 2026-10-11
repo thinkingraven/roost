@@ -1,0 +1,34 @@
+name: Bug report
+description: roost crashed, missed your logs, or reported something wrong.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Please don't paste real session logs or prompts. Describe the file layout and replace anything private with placeholders.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you expected, and what roost did instead.
+    validations:
+      required: true
+  - type: input
+    id: command
+    attributes:
+      label: Command
+      placeholder: node dist/src/cli.js sources --format json
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Output
+      description: Paste the relevant output. Remove anything private first.
+      render: text
+  - type: input
+    id: versions
+    attributes:
+      label: roost, agent, Node and OS versions
+      placeholder: roost 0.0.0 · Claude Code 2.x · node 22.11 · macOS 15
+    validations:
+      required: true

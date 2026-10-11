@@ -1,0 +1,15 @@
+name: Feature or agent support
+description: Support a new agent's session logs, or a new report or verdict.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What should roost do?
+    validations:
+      required: true
+  - type: textarea
+    id: example
+    attributes:
+      label: Where the agent keeps its logs
+      description: For a new agent, the folder layout and file format, with a link to its docs. Describe the shape; don't paste real logs.
