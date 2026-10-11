@@ -84,10 +84,38 @@ export function renderUsageTerminal(v: UsageView): string {
     h('BUILT-IN TOOLS');
     out.push('  ' + r.tools.slice(0, 8).map((x) => `${x.name} ${bold(x.count.toLocaleString('en-US'))}`).join(dim('  ·  ')) + (r.tools.length > 8 ? dim('  · …') : ''));
   }
+  const steps = nextSteps(r, v.window, { bold, dim, amber });
+  if (steps.length) {
+    h('NEXT STEPS');
+    for (const step of steps) out.push(`  ${amber('→')} ${step}`);
+  }
   if (r.skipped) out.push('', dim(`Skipped ${count(r.skipped, 'log line')} roost couldn't read.`));
   out.push('', dim('Tip: --format json has every row; --since all covers all time.'));
   out.push(dim('Only names, counts and dates: no prompt or reply text. Nothing leaves this machine.'), '');
   return out.join('\n');
+}
+
+/**
+ * A few plain observations from the counts, like rookery's next steps. Only what the data shows:
+ * the most widely used skill, skills that ran once, and MCP servers few sessions used.
+ */
+export function nextSteps(r: UsageReport, window: string, s: ReturnType<typeof style>): string[] {
+  const { bold, amber } = s;
+  const steps: string[] = [];
+  const shared = r.skills.filter((x) => x.repos >= 3).sort((a, b) => b.repos - a.repos || b.count - a.count)[0];
+  if (shared) {
+    steps.push(`${bold(shared.name)} runs in ${amber(bold(shared.repos))} repos: worth one shared, reviewed version (rookery shows the copies).`);
+  }
+  const once = r.skills.filter((x) => x.count === 1);
+  if (once.length) {
+    const names = once.slice(0, 3).map((x) => x.name).join(', ') + (once.length > 3 ? ` and ${once.length - 3} more` : '');
+    steps.push(`${amber(bold(count(once.length, 'skill')))} ran just once (${window}): ${names}. ${once.length === 1 ? 'Check it still earns its place.' : 'Check they still earn their place.'}`);
+  }
+  const quiet = r.mcp.filter((x) => x.sessions / r.sessions < 0.25).sort((a, b) => a.sessions - b.sessions)[0];
+  if (quiet && r.sessions >= 8) {
+    steps.push(`${bold(quiet.server)} was used in ${amber(bold(quiet.sessions))} of ${r.sessions} sessions. If it's enabled everywhere, its tool definitions cost tokens in the other ${r.sessions - quiet.sessions}.`);
+  }
+  return steps;
 }
 
 export function renderUsageJson(v: UsageView, agent: string): string {

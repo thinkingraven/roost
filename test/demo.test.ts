@@ -27,4 +27,9 @@ test('recovers the demo team\'s exact totals from 23k realistic log lines', () =
   assert.equal(out.commands.find((c: { name: string }) => c.name === '/deploy')?.count, 15);
   assert.equal(out.tools.find((t: { name: string }) => t.name === 'Bash')?.count, 3912);
   assert.equal(out.skipped, 0);
+
+  const text = spawnSync(process.execPath, [CLI, 'usage', '--home', home, '--since', 'all'], { encoding: 'utf8', env }).stdout;
+  assert.match(text, /→ code-review runs in 4 repos: worth one shared, reviewed version/);
+  assert.match(text, /→ 1 skill ran just once \(all time\): changelog\. Check it still earns its place\./);
+  assert.match(text, /→ sentry was used in 6 of 41 sessions\. If it's enabled everywhere, its tool definitions cost tokens in the other 35\./);
 });

@@ -19,7 +19,7 @@
 </p>
 
 <p align="center">
-  <img src=".github/assets/terminal.png" width="860" alt="roost usage for a demo team: 41 Claude Code sessions in 6 repos over 30 days, token totals, bars for 8 skills led by code-review with 31 runs, 4 subagent types, 3 MCP servers led by github with 288 calls, the team's own slash commands, and sessions and tokens per repo">
+  <img src=".github/assets/terminal.png" width="860" alt="roost usage for a demo team: 41 Claude Code sessions in 6 repos over 30 days, token totals, bars for skills led by code-review with 31 runs, subagent types, 3 MCP servers led by github with 288 calls, the team's own slash commands, sessions and tokens per repo, and next steps: share code-review, check a skill that ran once, and an MCP server used in 6 of 41 sessions">
 </p>
 
 ---

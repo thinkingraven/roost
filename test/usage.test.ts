@@ -148,6 +148,7 @@ test('usage terminal report and an empty window', () => {
   assert.match(r.stdout, /SKILLS\s+4 runs of 3 skills/);
   assert.match(r.stdout, /MCP SERVERS\s+3 calls to 1 server/);
   assert.match(r.stdout, /Built in: \/model 1/);
+  assert.match(r.stdout, /NEXT STEPS\n {2}→ 2 skills ran just once \(since 2026-09-01\): \?\[31mred, pr-summary\. Check they still earn their place\./);
   const empty = run('usage', '--home', mkdtempSync(join(tmpdir(), 'roost-empty-')));
   assert.match(empty.stdout, /Claude Code {2}· {2}last 30 days/);
   assert.match(empty.stdout, /No Claude Code sessions found\./);
