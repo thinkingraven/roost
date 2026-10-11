@@ -5,6 +5,7 @@ import { resolve } from 'node:path';
 import { findSources } from './sources.js';
 import { renderSourcesJson, renderSourcesTerminal } from './report/sources.js';
 import { renderUsageJson, renderUsageTerminal, type UsageView } from './report/usage.js';
+import { useColor } from './report/style.js';
 import { aggregate } from './usage/aggregate.js';
 import { readClaudeCode } from './usage/claude-code.js';
 import { VERSION } from './version.js';
@@ -21,6 +22,7 @@ Options
   --top <n>                      Rows per section in the terminal report (default: 10)
   --format <terminal|json>       Output format (default: terminal)
   --home <dir>                   Look in this home folder instead of yours
+  --no-color                     Disable colours (also respects NO_COLOR; FORCE_COLOR forces them)
   -v, --version                  Print the version
   -h, --help                     Show this help
 
@@ -59,6 +61,7 @@ async function main(argv: string[]): Promise<number> {
         top: { type: 'string', default: '10' },
         format: { type: 'string', default: 'terminal' },
         home: { type: 'string' },
+        'no-color': { type: 'boolean', default: false },
         version: { type: 'boolean', short: 'v', default: false },
         help: { type: 'boolean', short: 'h', default: false },
       },
@@ -76,10 +79,11 @@ async function main(argv: string[]): Promise<number> {
   if (rest.length) fail(`unexpected argument "${rest[0]}"`);
   if (o.format !== 'terminal' && o.format !== 'json') fail(`--format must be terminal or json, not "${o.format}"`);
   const home = o.home ? resolve(o.home) : homedir();
+  const color = useColor(o['no-color']);
 
   if (command === 'sources') {
     const sources = findSources(home);
-    process.stdout.write(o.format === 'json' ? renderSourcesJson(sources, home) : renderSourcesTerminal(sources, home));
+    process.stdout.write(o.format === 'json' ? renderSourcesJson(sources, home) : renderSourcesTerminal(sources, home, color));
     return 0;
   }
 
@@ -87,7 +91,7 @@ async function main(argv: string[]): Promise<number> {
   if (!Number.isInteger(top) || top < 1) fail(`--top must be a whole number of 1 or more, not "${o.top}"`);
   const { since, window } = parseSince(o.since);
   const { sessions, skipped } = await readClaudeCode(home, since);
-  const view: UsageView = { report: aggregate(sessions, skipped, since), agentName: 'Claude Code', window, home, top };
+  const view: UsageView = { report: aggregate(sessions, skipped, since), agentName: 'Claude Code', window, home, top, color };
   process.stdout.write(o.format === 'json' ? renderUsageJson(view, 'claude-code') : renderUsageTerminal(view));
   return 0;
 }

@@ -7,9 +7,13 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readClaudeCode, resolveRepo } from '../src/usage/claude-code.js';
 import { aggregate } from '../src/usage/aggregate.js';
+import { useColor } from '../src/report/style.js';
 
 const CLI = fileURLToPath(new URL('../src/cli.js', import.meta.url));
-const run = (...args: string[]) => spawnSync(process.execPath, [CLI, ...args], { encoding: 'utf8' });
+const env = { ...process.env, FORCE_COLOR: '', NO_COLOR: '' };
+const run = (...args: string[]) => spawnSync(process.execPath, [CLI, ...args], { encoding: 'utf8', env });
+const runWith = (extra: Record<string, string>, ...args: string[]) =>
+  spawnSync(process.execPath, [CLI, ...args], { encoding: 'utf8', env: { ...env, ...extra } });
 
 // Synthetic logs in Claude Code's shape. Every string a report must never show contains "SECRET".
 const usage = { input_tokens: 10, cache_creation_input_tokens: 100, cache_read_input_tokens: 1000, output_tokens: 5 };
@@ -140,16 +144,38 @@ test('usage --format json shape', () => {
 test('usage terminal report and an empty window', () => {
   const { home } = fixture();
   const r = run('usage', '--home', home, '--since', '2026-09-01');
-  assert.match(r.stdout, /Claude Code · since 2026-09-01 · 3 sessions in 2 repos/);
+  assert.match(r.stdout, /roost\. v[\d.]+ {2}· {2}Claude Code {2}· {2}since 2026-09-01 {2}· {2}3 sessions in 2 repos/);
   assert.match(r.stdout, /SKILLS\s+4 runs of 3 skills/);
   assert.match(r.stdout, /MCP SERVERS\s+3 calls to 1 server/);
   assert.match(r.stdout, /Built in: \/model 1/);
   const empty = run('usage', '--home', mkdtempSync(join(tmpdir(), 'roost-empty-')));
-  assert.match(empty.stdout, /No Claude Code sessions found \(last 30 days\)/);
+  assert.match(empty.stdout, /Claude Code {2}· {2}last 30 days/);
+  assert.match(empty.stdout, /No Claude Code sessions found\./);
 });
 
 test('usage option errors exit 2', () => {
   assert.equal(run('usage', '--since', 'yesterday').status, 2);
   assert.equal(run('usage', '--since', '0d').status, 2);
   assert.equal(run('usage', '--top', '0').status, 2);
+});
+
+test('colours only on a terminal or with FORCE_COLOR, never with NO_COLOR or --no-color', () => {
+  const { home } = fixture();
+  const args = ['usage', '--home', home, '--since', '2026-09-01'];
+  assert.ok(!run(...args).stdout.includes('\x1b['), 'piped output stays plain');
+  const forced = runWith({ FORCE_COLOR: '1' }, ...args).stdout;
+  assert.ok(forced.includes('\x1b[38;5;214m'), 'FORCE_COLOR paints the amber accent');
+  assert.ok(!forced.includes('\u001b[31mred'), 'a name\'s own escape code never survives, even in colour');
+  assert.ok(!forced.includes('SECRET'));
+  assert.ok(!runWith({ FORCE_COLOR: '1', NO_COLOR: '1' }, ...args).stdout.includes('\x1b['));
+  assert.ok(!runWith({ FORCE_COLOR: '1' }, ...args, '--no-color').stdout.includes('\x1b['));
+});
+
+test('useColor follows --no-color, NO_COLOR, FORCE_COLOR and the terminal', () => {
+  assert.equal(useColor(false, {}, true), true);
+  assert.equal(useColor(false, {}, false), false);
+  assert.equal(useColor(true, {}, true), false);
+  assert.equal(useColor(false, { NO_COLOR: '1' }, true), false);
+  assert.equal(useColor(false, { FORCE_COLOR: '1' }, false), true);
+  assert.equal(useColor(false, { FORCE_COLOR: '0' }, false), false);
 });
