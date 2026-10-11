@@ -4,7 +4,7 @@ import { chmodSync, mkdirSync, mkdtempSync, utimesSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { findSources } from '../src/sources.js';
-import { tilde } from '../src/report.js';
+import { tilde } from '../src/report/format.js';
 
 /** A fake home folder. Files are empty: roost must work from names and dates alone. */
 function fakeHome(files: Record<string, string>): string {
