@@ -1,15 +1,25 @@
 import type { Source } from '../sources.js';
 import { VERSION } from '../version.js';
-import { count, day, table, tilde } from './format.js';
+import { count, day, tilde } from './format.js';
+import { style } from './style.js';
 
-export function renderSourcesTerminal(sources: Source[], home: string): string {
-  const rows = sources.map((s) => [
-    s.name,
-    tilde(s.dir, home),
-    s.found ? count(s.sessions, 'session') : 'not found',
-    s.first && s.last ? `${day(s.first)} → ${day(s.last)}` : '',
-  ]);
-  return `roost v${VERSION}: agent session logs on this machine\n\n${table(rows).join('\n')}\n\nNothing leaves this machine.\n`;
+export function renderSourcesTerminal(sources: Source[], home: string, color = false): string {
+  const { bold, dim, amber } = style(color);
+  const rows = sources.map((s) => ({
+    name: s.name,
+    dir: tilde(s.dir, home),
+    sessions: s.found ? count(s.sessions, 'session') : 'not found',
+    span: s.first && s.last ? `${day(s.first)} → ${day(s.last)}` : '',
+    found: s.found,
+  }));
+  const w = (k: 'name' | 'dir' | 'sessions') => Math.max(...rows.map((r) => r[k].length));
+  const out = [`${bold('roost')}${amber('.')} ${dim(`v${VERSION}`)}  ${dim('·')}  agent session logs on this machine`, ''];
+  for (const r of rows) {
+    const sessions = r.found ? bold(r.sessions.padEnd(w('sessions'))) : dim(r.sessions.padEnd(w('sessions')));
+    out.push(`  ${r.name.padEnd(w('name'))}   ${dim(r.dir.padEnd(w('dir')))}   ${sessions}   ${dim(r.span)}`.trimEnd());
+  }
+  out.push('', dim('Nothing leaves this machine.'), '');
+  return out.join('\n');
 }
 
 export function renderSourcesJson(sources: Source[], home: string): string {

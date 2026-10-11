@@ -8,7 +8,8 @@ import { fileURLToPath } from 'node:url';
 import { VERSION } from '../src/version.js';
 
 const CLI = fileURLToPath(new URL('../src/cli.js', import.meta.url));
-const run = (...args: string[]) => spawnSync(process.execPath, [CLI, ...args], { encoding: 'utf8' });
+const env = { ...process.env, FORCE_COLOR: '', NO_COLOR: '' };
+const run = (...args: string[]) => spawnSync(process.execPath, [CLI, ...args], { encoding: 'utf8', env });
 
 test('--version prints the package version', () => {
   const r = run('--version');

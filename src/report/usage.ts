@@ -1,8 +1,8 @@
 import { BUILT_IN_COMMANDS } from '../usage/claude-code.js';
 import { totalInput, totalTokens, type Counted, type UsageReport } from '../usage/aggregate.js';
-import type { Tokens } from '../usage/types.js';
 import { VERSION } from '../version.js';
-import { compact, count, day, table, tilde } from './format.js';
+import { compact, count, day, tilde } from './format.js';
+import { bar, style } from './style.js';
 
 export interface UsageView {
   report: UsageReport;
@@ -11,71 +11,82 @@ export interface UsageView {
   window: string;
   home: string;
   top: number;
+  color?: boolean;
 }
 
 const repoName = (repo: string | null, home: string) => (repo ? tilde(repo, home) : '(unknown folder)');
 
-function more(list: unknown[], top: number): string[] {
-  const rest = list.length - top;
-  return rest > 0 ? [`  + ${rest} more (--top ${list.length} shows them all)`] : [];
-}
-
-function countedRows(list: Counted[], top: number, unit: string): string[] {
-  return [
-    ...table(list.slice(0, top).map((c) => [c.name, count(c.count, unit), count(c.sessions, 'session'), count(c.repos, 'repo')])),
-    ...more(list, top),
-  ];
-}
-
-const tokensLine = (t: Tokens) =>
-  `${compact(totalInput(t))} in · ${compact(t.output)} out`;
-
 export function renderUsageTerminal(v: UsageView): string {
+  const { bold, dim, amber } = style(v.color ?? false);
   const r = v.report;
-  const out: string[] = [`roost v${VERSION}: what your agents actually used`];
+  const sep = `  ${dim('·')}  `;
+  const out: string[] = [];
+  const h = (title: string, meta = '') => out.push('', `${bold(title)}${meta ? '  ' + dim(meta) : ''}`);
+  const more = (list: unknown[]) => {
+    const rest = list.length - v.top;
+    if (rest > 0) out.push(dim(`  … ${rest} more (--top ${list.length} shows them all)`));
+  };
+  /** Name, amber bar, bold count, dim detail: rookery's row. */
+  const bars = (rows: { name: string; value: number; detail: string }[]) => {
+    const shown = rows.slice(0, v.top);
+    const max = Math.max(...shown.map((x) => x.value));
+    const width = Math.max(...shown.map((x) => x.name.length));
+    for (const x of shown) out.push(`  ${x.name.padEnd(width)}  ${amber(bar(x.value, max))} ${bold(x.value.toLocaleString('en-US'))}  ${dim(x.detail)}`);
+    more(rows);
+  };
+  const spread = (c: Counted) => `in ${count(c.sessions, 'session')} · ${count(c.repos, 'repo')}`;
+
+  const head = [`${bold('roost')}${amber('.')} ${dim(`v${VERSION}`)}`, v.agentName, v.window];
   if (r.sessions === 0) {
-    out.push('', `No ${v.agentName} sessions found (${v.window}).`, '', 'Nothing leaves this machine.', '');
+    out.push(head.join(sep), '', `No ${v.agentName} sessions found.`, '', dim('Nothing leaves this machine.'), '');
     return out.join('\n');
   }
-  const span = r.first && r.last ? ` · ${day(r.first)} → ${day(r.last)}` : '';
-  out.push(`${v.agentName} · ${v.window} · ${count(r.sessions, 'session')} in ${count(r.repos.length, 'repo')}${span}`, '');
+  head.push(`${count(r.sessions, 'session')} in ${count(r.repos.length, 'repo')}`);
+  if (r.first && r.last) head.push(dim(`${day(r.first)} → ${day(r.last)}`));
+  out.push(head.join(sep));
 
-  out.push(`TOKENS        ${tokensLine(r.tokens)}`);
-  if (totalInput(r.tokens) > 0) {
-    out.push(`              of the input, ${compact(r.tokens.cacheRead)} was cache reads and ${compact(r.tokens.cacheWrite)} cache writes`);
-  }
+  const t = r.tokens;
+  h('TOKENS', `${compact(totalInput(t))} in · ${compact(t.output)} out`);
+  out.push(`  ${dim('cache reads')} ${bold(compact(t.cacheRead))}${sep}${dim('cache writes')} ${bold(compact(t.cacheWrite))}${sep}${dim('uncached input')} ${bold(compact(t.input))}${sep}${dim('output')} ${bold(compact(t.output))}`);
 
-  const skillRuns = r.skills.reduce((a, s) => a + s.count, 0);
-  out.push('', `SKILLS        ${r.skills.length ? `${count(skillRuns, 'run')} of ${count(r.skills.length, 'skill')}` : 'none run'}`);
-  out.push(...countedRows(r.skills, v.top, 'run'));
+  const runs = (list: Counted[]) => list.reduce((a, c) => a + c.count, 0);
+  h('SKILLS', r.skills.length ? `${count(runs(r.skills), 'run')} of ${count(r.skills.length, 'skill')}` : 'none run');
+  bars(r.skills.map((c) => ({ name: c.name, value: c.count, detail: spread(c) })));
 
-  const agentRuns = r.subagents.reduce((a, s) => a + s.count, 0);
-  out.push('', `SUBAGENTS     ${r.subagents.length ? count(agentRuns, 'run') : 'none run'}`);
-  out.push(...countedRows(r.subagents, v.top, 'run'));
+  h('SUBAGENTS', r.subagents.length ? count(runs(r.subagents), 'run') : 'none run');
+  bars(r.subagents.map((c) => ({ name: c.name, value: c.count, detail: spread(c) })));
 
-  const mcpCalls = r.mcp.reduce((a, s) => a + s.calls, 0);
-  out.push('', `MCP SERVERS   ${r.mcp.length ? `${count(mcpCalls, 'call')} to ${count(r.mcp.length, 'server')}` : 'none called'}`);
-  out.push(...table(r.mcp.slice(0, v.top).map((s) => [s.server, count(s.calls, 'call'), count(s.tools.length, 'tool'), count(s.sessions, 'session'), count(s.repos, 'repo')])));
-  out.push(...more(r.mcp, v.top));
+  const calls = r.mcp.reduce((a, s) => a + s.calls, 0);
+  h('MCP SERVERS', r.mcp.length ? `${count(calls, 'call')} to ${count(r.mcp.length, 'server')}` : 'none called');
+  bars(r.mcp.map((s) => ({ name: s.server, value: s.calls, detail: `${count(s.tools.length, 'tool')} · ${count(s.sessions, 'session')} · ${count(s.repos, 'repo')}` })));
 
   const custom = r.commands.filter((c) => !BUILT_IN_COMMANDS.has(c.name));
   const builtIn = r.commands.filter((c) => BUILT_IN_COMMANDS.has(c.name));
-  out.push('', `COMMANDS      ${custom.length ? count(custom.reduce((a, c) => a + c.count, 0), 'use') + ' of your own slash commands' : 'none of your own used'}`);
-  out.push(...countedRows(custom, v.top, 'use'));
-  if (builtIn.length) out.push(`  Built in: ${builtIn.slice(0, 8).map((c) => `${c.name} ${c.count}`).join(' · ')}`);
+  h('COMMANDS', custom.length ? `${count(runs(custom), 'use')} of your own slash commands` : 'none of your own used');
+  bars(custom.map((c) => ({ name: c.name, value: c.count, detail: spread(c) })));
+  if (builtIn.length) out.push(dim(`  Built in: ${builtIn.slice(0, 8).map((c) => `${c.name} ${c.count}`).join(' · ')}`));
 
-  out.push('', 'REPOS');
-  out.push(...table(r.repos.slice(0, v.top).map((p) => [
-    repoName(p.repo, v.home), count(p.sessions, 'session'), `${compact(totalTokens(p.tokens))} tokens`,
-    count(p.skillRuns, 'skill run'), count(p.mcpCalls, 'MCP call'),
-  ])));
-  out.push(...more(r.repos, v.top));
+  h('REPOS', 'by sessions');
+  const repos = r.repos.slice(0, v.top).map((p) => ({
+    name: repoName(p.repo, v.home),
+    sessions: count(p.sessions, 'session'),
+    tokens: `${compact(totalTokens(p.tokens))} tokens`,
+    skills: count(p.skillRuns, 'skill run'),
+    mcp: count(p.mcpCalls, 'MCP call'),
+  }));
+  const w = (k: keyof (typeof repos)[number]) => Math.max(...repos.map((x) => x[k].length));
+  for (const x of repos) {
+    out.push(`  ${x.name.padEnd(w('name'))}  ${bold(x.sessions.padEnd(w('sessions')))}${sep}${x.tokens.padEnd(w('tokens'))}${sep}${x.skills.padEnd(w('skills'))}${sep}${x.mcp}`);
+  }
+  more(r.repos);
 
   if (r.tools.length) {
-    out.push('', `BUILT-IN TOOLS  ${r.tools.slice(0, 8).map((t) => `${t.name} ${t.count.toLocaleString('en-US')}`).join(' · ')}${r.tools.length > 8 ? ' · …' : ''}`);
+    h('BUILT-IN TOOLS');
+    out.push('  ' + r.tools.slice(0, 8).map((x) => `${x.name} ${bold(x.count.toLocaleString('en-US'))}`).join(dim('  ·  ')) + (r.tools.length > 8 ? dim('  · …') : ''));
   }
-  if (r.skipped) out.push('', `Skipped ${count(r.skipped, 'log line')} roost couldn't read.`);
-  out.push('', 'Only names, counts and dates: no prompt or reply text. Nothing leaves this machine.', '');
+  if (r.skipped) out.push('', dim(`Skipped ${count(r.skipped, 'log line')} roost couldn't read.`));
+  out.push('', dim('Tip: --format json has every row; --since all covers all time.'));
+  out.push(dim('Only names, counts and dates: no prompt or reply text. Nothing leaves this machine.'), '');
   return out.join('\n');
 }
 

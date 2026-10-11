@@ -19,10 +19,3 @@ export function compact(n: number): string {
 export function count(n: number, one: string, many = one + 's'): string {
   return `${n.toLocaleString('en-US')} ${n === 1 ? one : many}`;
 }
-
-/** Left-aligned columns, two-space indent. */
-export function table(rows: string[][]): string[] {
-  if (!rows.length) return [];
-  const widths = rows[0].map((_, i) => Math.max(...rows.map((r) => (r[i] ?? '').length)));
-  return rows.map((r) => '  ' + r.map((cell, i) => cell.padEnd(widths[i])).join('   ').trimEnd());
-}
