@@ -18,7 +18,7 @@ Teams install skills, subagents, rules files and MCP servers in every repo and e
 | Step | What | Status |
 |---|---|---|
 | 1. Sources | Find each agent's session logs on the machine | Done (`roost sources`) |
-| 2. Usage | Count skills, slash commands, subagents and MCP tools actually invoked, per repo and per agent, with token use | Next |
+| 2. Usage | Count skills, slash commands, subagents and MCP tools actually invoked, per repo and per agent, with token use | Claude Code done (`roost usage`); Codex and Gemini CLI next |
 | 3. Context tax | Tokens loaded before the first prompt: instruction files, rules, skill descriptions, MCP tool definitions; what each one costs per session | |
 | 4. Verdicts | Join usage with rookery's JSON inventory: **keep**, **improve**, **merge** (duplicate clusters, with the copy that wins) or **retire** (installed, never used), with the tokens each change saves | |
 | 5. Team | Each developer exports a summary (counts and names only); `roost merge` combines them into one team report | |

@@ -55,18 +55,23 @@ export function findSources(home: string): Source[] {
   });
 }
 
+/** Calls `onFile` for every file under `dir`, at most `maxDepth` folders down. Doesn't follow symlinks. */
+export function walkFiles(dir: string, maxDepth: number, onFile: (path: string) => void): void {
+  const entries = list(dir);
+  if (entries) walk(dir, entries, 0, onFile, maxDepth);
+}
+
 function list(dir: string): Dirent[] | undefined {
   try { return readdirSync(dir, { withFileTypes: true }); } catch { return undefined; }
 }
 
-/** Depth-first walk that doesn't follow symlinks. */
-function walk(dir: string, entries: Dirent[], depth: number, onFile: (path: string) => void): void {
+function walk(dir: string, entries: Dirent[], depth: number, onFile: (path: string) => void, maxDepth = MAX_DEPTH): void {
   for (const entry of entries) {
     const path = join(dir, entry.name);
     if (entry.isFile()) onFile(path);
-    else if (entry.isDirectory() && depth < MAX_DEPTH) {
+    else if (entry.isDirectory() && depth < maxDepth) {
       const children = list(path);
-      if (children) walk(path, children, depth + 1, onFile);
+      if (children) walk(path, children, depth + 1, onFile, maxDepth);
     }
   }
 }
