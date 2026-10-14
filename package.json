@@ -1,7 +1,6 @@
 {
   "name": "@thinkingraven/roost",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "description": "See what your AI agents actually use: skills, subagents, MCP servers and context cost, read locally from agent session logs, so teams keep what works and retire the rest. Claude Code, Codex and Gemini CLI.",
   "keywords": [
     "claude-code",

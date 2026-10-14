@@ -9,6 +9,7 @@
 
 <p align="center">
   <a href="https://github.com/thinkingraven/roost/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/thinkingraven/roost/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://www.npmjs.com/package/@thinkingraven/roost"><img alt="npm" src="https://img.shields.io/npm/v/@thinkingraven/roost?color=F2A93B&label=npm"></a>
   <img alt="Node 20+" src="https://img.shields.io/badge/node-%E2%89%A520-0F0F14">
   <img alt="No runtime dependencies" src="https://img.shields.io/badge/dependencies-0-0F0F14">
   <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/badge/license-MIT-0F0F14"></a>
@@ -32,25 +33,22 @@ Every team ends up installing a *code-review* skill, a GitHub MCP server and a d
 
 ## Quick start
 
-Not on npm yet; it will be with the first release. From a clone:
-
 ```bash
-git clone https://github.com/thinkingraven/roost.git
-cd roost
-npm ci && npm test
-
-node dist/src/cli.js usage                          # the last 30 days
-node dist/src/cli.js usage --since all              # all time
-node dist/src/cli.js usage --format json > usage.json
-node dist/src/cli.js sources                        # where each agent keeps its logs
+npx @thinkingraven/roost usage                     # what Claude Code ran, the last 30 days
+npx @thinkingraven/roost usage --since all         # all time
+npx @thinkingraven/roost sources                   # where each agent keeps its logs
 
 # keep, fix, merge or retire each skill: rookery's inventory joined with what ran
-npx @thinkingraven/rookery scan ~/code --local --format json | node dist/src/cli.js verdicts
+npx @thinkingraven/rookery scan ~/code --local --format json | npx @thinkingraven/roost verdicts
 ```
 
-No logs of your own to hand? Try it on a made-up team:
+Or install it: `npm install -g @thinkingraven/roost`, then run `roost usage`.
+
+No logs of your own to hand? Try it on a made-up team, from a clone:
 
 ```bash
+git clone https://github.com/thinkingraven/roost.git && cd roost
+npm ci && npm test
 node scripts/demo-home.mjs /tmp/acme
 node dist/src/cli.js usage --home /tmp/acme --since all
 ```
@@ -75,7 +73,7 @@ Node 20 or newer.
 [rookery](https://github.com/thinkingraven/rookery) knows which skills, commands and subagents are installed and what's wrong with them. roost knows which ones ran. `roost verdicts` puts the two together:
 
 ```bash
-npx @thinkingraven/rookery scan ~/code --local --format json | roost verdicts
+npx @thinkingraven/rookery scan ~/code --local --format json | npx @thinkingraven/roost verdicts
 ```
 
 | Verdict | When |
@@ -184,7 +182,6 @@ Today roost reads one machine. Team summaries are on the roadmap: each person ex
 - **Verdicts, next steps**: Codex and Gemini CLI, the tokens each change saves, and a pull request that retires or merges for you
 - **Team summaries**: counts-only exports merged into one team report
 - **HTML and Markdown reports**, in rookery's style
-- **npm release**: `npx @thinkingraven/roost usage`
 
 The detailed plan is in [docs/plan.md](docs/plan.md).
 
