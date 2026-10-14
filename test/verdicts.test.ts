@@ -98,7 +98,8 @@ test('verdicts: personal skills win over project ones, linked installs count, an
     art('~', '.claude/skills/deploy/SKILL.md', 'deploy'),
     art('shop', '.claude/skills/deploy/SKILL.md', 'deploy'),
     art('~', '.agents/skills/find-docs/SKILL.md', 'find-docs', 'skill', { agent: 'agent-skills', links: [{ relPath: '.claude/skills/find-docs/SKILL.md', agent: 'claude-code' }] }),
-    art('~', '.agents/skills/codex-only/SKILL.md', 'codex-only', 'skill', { agent: 'agent-skills' }),
+    art('~', '.agents/skills/shared-skill/SKILL.md', 'shared-skill', 'skill', { agent: 'agent-skills' }),
+    art('shop', '.cursor/skills/cursor-only/SKILL.md', 'cursor-only', 'skill', { agent: 'cursor' }),
     art('~', '.claude/skills/event-tagging/SKILL.md', 'event-tagging'),
     art('shop', '.cursor/rules/style.mdc', 'style', 'rules', { agent: 'cursor' }),
     art('shop', '.gemini/commands/x.toml', 'x', 'command', { agent: 'gemini' }),
@@ -106,10 +107,29 @@ test('verdicts: personal skills win over project ones, linked installs count, an
   const deploys = r.judged.filter((j) => j.name === 'deploy');
   assert.deepEqual(deploys.map((j) => [j.repo, j.uses]).sort(), [['~', 2], ['~/code/shop', 0]]);
   assert.equal(verdictOf(r, 'find-docs').verdict, 'keep', 'linked into ~/.claude/skills');
-  assert.ok(!r.judged.some((j) => j.name === 'codex-only'));
+  assert.deepEqual([verdictOf(r, 'shared-skill').agents, verdictOf(r, 'shared-skill').verdict], [['codex', 'gemini-cli'], 'no-data'], '.agents/skills is Codex and Gemini CLI, and only Claude sessions ran');
+  assert.ok(!r.judged.some((j) => j.name === 'cursor-only'));
   assert.deepEqual(verdictOf(r, 'event-tagging').copyUsed, { name: 'anthropic-skills:event-tagging', uses: 3 });
-  assert.deepEqual(r.notJudged, { 'agent-skills': 1, gemini: 1 }, 'rules files are not judged, other agents are counted');
+  assert.deepEqual(r.notJudged, { cursor: 1 }, 'rules files are not judged; agents roost can\'t read are counted');
+  assert.equal(verdictOf(r, 'x').agents[0], 'gemini-cli', 'a Gemini command is judged against Gemini sessions');
   assert.deepEqual(r.unmatched.map((u) => u.name), ['anthropic-skills:event-tagging', 'my-plugin:lint']);
+});
+
+test('verdicts: each agent\'s sessions count only for what that agent loads', () => {
+  const s = (agent: 'codex' | 'gemini-cli', used: Parameters<typeof session>[1]) => ({ ...session(SHOP, used), agent });
+  const r = judge(report([
+    art('shop', '.codex/skills/pdf/SKILL.md', 'pdf', 'skill', { agent: 'codex' }),
+    art('shop', '.claude/skills/pdf/SKILL.md', 'pdf'),
+    art('~', '.agents/skills/lint/SKILL.md', 'lint', 'skill', { agent: 'agent-skills' }),
+    art('shop', '.gemini/commands/git/commit.toml', 'commit', 'command', { agent: 'gemini' }),
+    art('shop', '.codex/prompts/fix.md', 'fix', 'command', { agent: 'codex' }),
+  ]), [s('codex', { skills: { pdf: 2, lint: 1 }, commands: { '/prompts:fix': 1, '/review': 1 } }), s('gemini-cli', { skills: { lint: 3 }, commands: { '/git:commit': 4, '/stats': 1 }, subagents: { codebase_investigator: 1 } }), session(SHOP)], HOME);
+  const pdf = r.judged.filter((j) => j.name === 'pdf').map((j) => [j.relPath, j.verdict, j.uses]).sort();
+  assert.deepEqual(pdf, [['.claude/skills/pdf/SKILL.md', 'retire', 0], ['.codex/skills/pdf/SKILL.md', 'keep', 2]], 'Codex runs don\'t count for the Claude Code copy');
+  assert.deepEqual([verdictOf(r, 'lint').uses, verdictOf(r, 'lint').sessions], [4, 2], 'a shared .agents skill counts in Codex and Gemini CLI');
+  assert.equal(verdictOf(r, 'commit').uses, 4, '.gemini/commands/git/commit.toml is /git:commit');
+  assert.equal(verdictOf(r, 'fix').uses, 1, 'Codex custom prompts are /prompts:name');
+  assert.deepEqual(r.unmatched, [], 'each agent\'s built-in commands and subagents are left out');
 });
 
 test('verdicts: reports from rookery before 0.7.2 match repos by folder name', () => {
@@ -118,7 +138,7 @@ test('verdicts: reports from rookery before 0.7.2 match repos by folder name', (
   const r = judge(report([old]), [session(SHOP, { skills: { fmt: 1 } })], HOME);
   assert.equal(r.matchedByName, true);
   assert.equal(verdictOf(r, 'fmt').verdict, 'keep');
-  assert.match(renderVerdictsTerminal({ report: r, window: 'last 30 days', sessions: 1, first: null, last: null, rookery: { version: '0.7.1' }, top: 10 }), /matched by folder name/);
+  assert.match(renderVerdictsTerminal({ report: r, window: 'last 30 days', sessions: 1, agents: [{ id: 'claude-code', sessions: 1 }], first: null, last: null, rookery: { version: '0.7.1' }, top: 10 }), /matched by folder name/);
 });
 
 test('verdicts: repo paths compare the same on every OS', async () => {

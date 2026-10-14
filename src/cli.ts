@@ -8,7 +8,7 @@ import { renderSourcesJson, renderSourcesTerminal } from './report/sources.js';
 import { renderUsageJson, renderUsageTerminal, type UsageView } from './report/usage.js';
 import { useColor } from './report/style.js';
 import { aggregate } from './usage/aggregate.js';
-import { readClaudeCode } from './usage/claude-code.js';
+import { AGENTS, type AgentDef } from './usage/agents.js';
 import { renderVerdictsJson, renderVerdictsTerminal } from './report/verdicts.js';
 import { InputError, judge, parseRookery } from './verdicts.js';
 import { VERSION } from './version.js';
@@ -17,14 +17,15 @@ const HELP = `roost v${VERSION}: see what your AI agents actually use.
 
 Usage
   roost usage                    Skills, subagents, MCP servers and commands your agents
-                                 actually ran, with token use, per repo (Claude Code)
+                                 actually ran, with token use, per repo (Claude Code, Codex, Gemini CLI)
   roost verdicts                 Keep, fix, merge or retire each skill: rookery's inventory joined
-                                 with what Claude Code actually ran. Pipe rookery's JSON in:
+                                 with what your agents actually ran. Pipe rookery's JSON in:
                                    rookery scan ~/code --local --format json | roost verdicts
   roost sources                  Find each agent's session logs on this machine
 
 Options
   --since <30d|YYYY-MM-DD|all>   Time window for usage and verdicts (default: 30d)
+  --agent <name>                 claude-code, codex, gemini or all (default: all with sessions)
   --rookery <file>               rookery's JSON report for verdicts (or pipe it in; - reads stdin)
   --top <n>                      Rows per section in the terminal report (default: 10)
   --format <terminal|json>       Output format (default: terminal)
@@ -76,6 +77,7 @@ async function main(argv: string[]): Promise<number> {
         format: { type: 'string', default: 'terminal' },
         home: { type: 'string' },
         rookery: { type: 'string' },
+        agent: { type: 'string', default: 'all' },
         'no-color': { type: 'boolean', default: false },
         version: { type: 'boolean', short: 'v', default: false },
         help: { type: 'boolean', short: 'h', default: false },
@@ -102,6 +104,9 @@ async function main(argv: string[]): Promise<number> {
     return 0;
   }
 
+  const flags = ['all', ...AGENTS.map((a) => a.flag)];
+  if (!flags.includes(o.agent as string)) fail(`--agent must be ${flags.slice(1).join(', ')} or all, not "${o.agent}"`);
+  const chosen: readonly AgentDef[] = o.agent === 'all' ? AGENTS : AGENTS.filter((a) => a.flag === o.agent);
   const top = Number(o.top);
   if (!Number.isInteger(top) || top < 1) fail(`--top must be a whole number of 1 or more, not "${o.top}"`);
   const { since, window } = parseSince(o.since);
@@ -115,7 +120,8 @@ async function main(argv: string[]): Promise<number> {
       if (err instanceof InputError) fail(err.message);
       fail(`can't read ${source === '-' ? 'stdin' : source}: ${(err as Error).message}`);
     }
-    const { sessions } = await readClaudeCode(home, since);
+    const read = await Promise.all(chosen.map(async (def) => ({ def, ...(await def.read(home, since)) })));
+    const sessions = read.flatMap((r) => r.sessions);
     let first: Date | null = null, last: Date | null = null;
     for (const s of sessions) {
       if (s.first && (!first || s.first < first)) first = s.first;
@@ -123,15 +129,23 @@ async function main(argv: string[]): Promise<number> {
     }
     const view = {
       report: judge(rookery, sessions, home), window, sessions: sessions.length, first, last,
+      agents: read.map((r) => ({ id: r.def.id, sessions: r.sessions.length })),
       rookery: { version: rookery.tool.version, scannedAt: rookery.scannedAt }, top, color,
     };
     process.stdout.write(o.format === 'json' ? renderVerdictsJson(view) : renderVerdictsTerminal(view));
     return 0;
   }
 
-  const { sessions, skipped } = await readClaudeCode(home, since);
-  const view: UsageView = { report: aggregate(sessions, skipped, since), agentName: 'Claude Code', window, home, top, color };
-  process.stdout.write(o.format === 'json' ? renderUsageJson(view, 'claude-code') : renderUsageTerminal(view));
+  const read = await Promise.all(chosen.map(async (def) => ({ def, ...(await def.read(home, since)) })));
+  const views = read.map(({ def, sessions, skipped }) => ({
+    agent: def.id,
+    view: { report: aggregate(sessions, skipped, since), agentName: def.name, builtInCommands: def.builtInCommands, window, home, top, color } as UsageView,
+  }));
+  // With --agent all, show the agents that have sessions; name one agent to see it even when it has none.
+  const shown = o.agent === 'all' ? views.filter((v) => v.view.report.sessions > 0) : views;
+  if (o.format === 'json') process.stdout.write(renderUsageJson(shown, window));
+  else if (!shown.length) process.stdout.write(renderUsageTerminal(views[0].view).replace(`No ${views[0].view.agentName} sessions found.`, `No ${AGENTS.map((a) => a.name).join(', ').replace(/, ([^,]+)$/, ' or $1')} sessions found.`));
+  else process.stdout.write(shown.map((v, i) => renderUsageTerminal({ ...v.view, noFooter: i < shown.length - 1 })).join('\n'));
   return 0;
 }
 

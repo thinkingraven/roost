@@ -1,4 +1,3 @@
-import { BUILT_IN_COMMANDS } from '../usage/claude-code.js';
 import { totalInput, totalTokens, type Counted, type UsageReport } from '../usage/aggregate.js';
 import { VERSION } from '../version.js';
 import { compact, count, day, tilde } from './format.js';
@@ -7,6 +6,10 @@ import { bar, style } from './style.js';
 export interface UsageView {
   report: UsageReport;
   agentName: string;
+  /** Leave out the closing tip and privacy note (when more reports follow). */
+  noFooter?: boolean;
+  /** The agent's own slash commands, reported apart from a team's. */
+  builtInCommands: ReadonlySet<string>;
   /** "last 30 days", "since 2026-09-01" or "all time" */
   window: string;
   home: string;
@@ -60,8 +63,8 @@ export function renderUsageTerminal(v: UsageView): string {
   h('MCP SERVERS', r.mcp.length ? `${count(calls, 'call')} to ${count(r.mcp.length, 'server')}` : 'none called');
   bars(r.mcp.map((s) => ({ name: s.server, value: s.calls, detail: `${count(s.tools.length, 'tool')} · ${count(s.sessions, 'session')} · ${count(s.repos, 'repo')}` })));
 
-  const custom = r.commands.filter((c) => !BUILT_IN_COMMANDS.has(c.name));
-  const builtIn = r.commands.filter((c) => BUILT_IN_COMMANDS.has(c.name));
+  const custom = r.commands.filter((c) => !v.builtInCommands.has(c.name));
+  const builtIn = r.commands.filter((c) => v.builtInCommands.has(c.name));
   h('COMMANDS', custom.length ? `${count(runs(custom), 'use')} of your own slash commands` : 'none of your own used');
   bars(custom.map((c) => ({ name: c.name, value: c.count, detail: spread(c) })));
   if (builtIn.length) out.push(dim(`  Built in: ${builtIn.slice(0, 8).map((c) => `${c.name} ${c.count}`).join(' · ')}`));
@@ -90,8 +93,11 @@ export function renderUsageTerminal(v: UsageView): string {
     for (const step of steps) out.push(`  ${amber('→')} ${step}`);
   }
   if (r.skipped) out.push('', dim(`Skipped ${count(r.skipped, 'log line')} roost couldn't read.`));
-  out.push('', dim('Tip: --format json has every row; --since all covers all time.'));
-  out.push(dim('Only names, counts and dates: no prompt or reply text. Nothing leaves this machine.'), '');
+  if (!v.noFooter) {
+    out.push('', dim('Tip: --format json has every row; --since all covers all time.'));
+    out.push(dim('Only names, counts and dates: no prompt or reply text. Nothing leaves this machine.'));
+  }
+  out.push('');
   return out.join('\n');
 }
 
@@ -118,10 +124,10 @@ export function nextSteps(r: UsageReport, window: string, s: ReturnType<typeof s
   return steps;
 }
 
-export function renderUsageJson(v: UsageView, agent: string): string {
+/** One agent's usage as plain data, for the JSON report. */
+export function usageData(v: UsageView, agent: string) {
   const r = v.report;
-  const out = {
-    version: VERSION,
+  return {
     agent,
     window: v.window,
     since: r.since?.toISOString() ?? null,
@@ -132,10 +138,14 @@ export function renderUsageJson(v: UsageView, agent: string): string {
     skills: r.skills,
     subagents: r.subagents,
     mcp: r.mcp,
-    commands: r.commands.map((c) => ({ ...c, builtIn: BUILT_IN_COMMANDS.has(c.name) })),
+    commands: r.commands.map((c) => ({ ...c, builtIn: v.builtInCommands.has(c.name) })),
     tools: r.tools,
     repos: r.repos.map((p) => ({ ...p, repo: p.repo ? tilde(p.repo, v.home) : null })),
     skipped: r.skipped,
   };
-  return JSON.stringify(out, null, 2) + '\n';
+}
+
+/** Every agent's usage in one document: { version, window, agents: [...] }. */
+export function renderUsageJson(views: { view: UsageView; agent: string }[], window: string): string {
+  return JSON.stringify({ version: VERSION, window, agents: views.map(({ view, agent }) => usageData(view, agent)) }, null, 2) + '\n';
 }

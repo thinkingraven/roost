@@ -133,7 +133,10 @@ test('reports never contain message text, tool inputs or the home path', () => {
 
 test('usage --format json shape', () => {
   const { home } = fixture();
-  const out = JSON.parse(run('usage', '--home', home, '--since', '2026-09-01', '--format', 'json').stdout);
+  const doc = JSON.parse(run('usage', '--home', home, '--since', '2026-09-01', '--format', 'json').stdout);
+  assert.equal(doc.window, 'since 2026-09-01');
+  assert.equal(doc.agents.length, 1, 'only agents with sessions');
+  const out = doc.agents[0];
   assert.equal(out.agent, 'claude-code');
   assert.equal(out.window, 'since 2026-09-01');
   assert.equal(out.sessions, 3);
@@ -151,7 +154,9 @@ test('usage terminal report and an empty window', () => {
   assert.match(r.stdout, /NEXT STEPS\n {2}→ 2 skills ran just once \(since 2026-09-01\): \?\[31mred, pr-summary\. Check they still earn their place\./);
   const empty = run('usage', '--home', mkdtempSync(join(tmpdir(), 'roost-empty-')));
   assert.match(empty.stdout, /Claude Code {2}· {2}last 30 days/);
-  assert.match(empty.stdout, /No Claude Code sessions found\./);
+  assert.match(empty.stdout, /No Claude Code, Codex or Gemini CLI sessions found\./);
+  assert.match(run('usage', '--home', home, '--agent', 'codex').stdout, /Codex {2}· {2}last 30 days[\s\S]*No Codex sessions found\./, 'one agent named: shown even with none');
+  assert.equal(run('usage', '--agent', 'cursor').status, 2);
 });
 
 test('usage option errors exit 2', () => {

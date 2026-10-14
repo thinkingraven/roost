@@ -21,6 +21,9 @@ Node 20 or newer.
 | `src/cli.ts` | Commands and options |
 | `src/sources.ts` | Where each agent keeps its session logs (`SOURCE_DEFS`), finding them, `walkFiles` |
 | `src/usage/claude-code.ts` | Reads Claude Code logs into per-session usage; repo resolution; built-in commands |
+| `src/usage/codex.ts` | Reads Codex rollouts: tool calls, MCP (from end events), skills (`<skill>` blocks), subagents, tokens; forks and subagent threads |
+| `src/usage/gemini.ts` | Reads Gemini CLI sessions (`.json` and `.jsonl`), subagent transcripts and `logs.json`; project roots |
+| `src/usage/agents.ts` | The agents roost reads: names, readers, built-in commands and subagents |
 | `src/usage/aggregate.ts` | Totals across sessions: skills, subagents, MCP servers, commands, tools, repos |
 | `src/usage/types.ts` | `SessionUsage` (names, counts, dates, tokens only) and name cleaning |
 | `src/verdicts.ts` | `roost verdicts`: reads rookery's JSON report and judges each Claude Code skill, command and subagent against the sessions |

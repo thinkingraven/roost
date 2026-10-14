@@ -1,3 +1,5 @@
+import { agentDef } from '../usage/agents.js';
+import type { AgentId } from '../sources.js';
 import { VERSION } from '../version.js';
 import type { Judged, Verdict, VerdictReport } from '../verdicts.js';
 import { VERDICT_ORDER } from '../verdicts.js';
@@ -9,6 +11,8 @@ export interface VerdictView {
   /** "last 30 days", "since 2026-09-01" or "all time" */
   window: string;
   sessions: number;
+  /** The agents whose logs were read, and how many sessions each had. */
+  agents: { id: AgentId; sessions: number }[];
   first: Date | null;
   last: Date | null;
   rookery: { version: string; scannedAt?: string };
@@ -24,7 +28,8 @@ const HEADINGS: Record<Verdict, [string, string]> = {
   'no-data': ['NO DATA', 'no sessions where these were available'],
 };
 
-const AGENT_NAMES: Record<string, string> = { codex: 'Codex', cursor: 'Cursor', copilot: 'Copilot', gemini: 'Gemini CLI', windsurf: 'Windsurf', 'agent-skills': 'Agent Skills', skillshare: 'skillshare' };
+const AGENT_NAMES: Record<string, string> = { cursor: 'Cursor', copilot: 'Copilot', windsurf: 'Windsurf', 'agent-skills': 'plugins', skillshare: 'skillshare' };
+const short: Record<AgentId, string> = { 'claude-code': 'Claude', codex: 'Codex', 'gemini-cli': 'Gemini' };
 
 function detail(j: Judged): string {
   const times = (n: number) => `${n.toLocaleString('en-US')}×`;
@@ -42,14 +47,15 @@ export function renderVerdictsTerminal(v: VerdictView): string {
   const sep = `  ${dim('·')}  `;
   const out: string[] = [];
   const r = v.report;
-  const head = [`${bold('roost')}${amber('.')} ${dim(`v${VERSION}`)}`, 'verdicts', 'Claude Code', v.window, count(v.sessions, 'session')];
+  const read = v.agents.filter((a) => a.sessions > 0).map((a) => agentDef(a.id).name);
+  const head = [`${bold('roost')}${amber('.')} ${dim(`v${VERSION}`)}`, 'verdicts', read.join(', ') || 'no sessions', v.window, count(v.sessions, 'session')];
   if (v.first && v.last) head.push(dim(`${day(v.first)} → ${day(v.last)}`));
   out.push(head.join(sep));
-  out.push(dim(`rookery ${v.rookery.version}${v.rookery.scannedAt ? ` scan from ${day(new Date(v.rookery.scannedAt))}` : ''}: ${count(r.judged.length, 'Claude Code skill, command or subagent', 'Claude Code skills, commands and subagents')} judged`));
+  out.push(dim(`rookery ${v.rookery.version}${v.rookery.scannedAt ? ` scan from ${day(new Date(v.rookery.scannedAt))}` : ''}: ${count(r.judged.length, 'skill, command or subagent', 'skills, commands and subagents')} judged`));
   if (r.matchedByName) out.push(dim('Repos matched by folder name. rookery 0.7.2 or later matches them exactly.'));
 
   if (!r.judged.length) {
-    out.push('', 'rookery\'s report has no Claude Code skills, commands or subagents to judge.', dim('Scan the repos you work in, plus --local for ~/.claude: rookery scan ~/code --local --format json | roost verdicts'), '');
+    out.push('', 'rookery\'s report has no Claude Code, Codex or Gemini CLI skills, commands or subagents to judge.', dim('Scan the repos you work in, plus --local for your own: rookery scan ~/code --local --format json | roost verdicts'), '');
     return out.join('\n');
   }
 
@@ -59,8 +65,10 @@ export function renderVerdictsTerminal(v: VerdictView): string {
     const [title, meta] = HEADINGS[verdict];
     out.push('', `${bold(title)} ${bold(rows.length)}  ${dim(meta)}`);
     const shown = rows.slice(0, v.top);
-    const label = (j: Judged) => `${j.name}${j.kind === 'skill' ? '' : ` (${j.kind})`}`;
-    const width = Math.min(36, Math.max(...shown.map((j) => label(j).length)));
+    const multi = new Set(r.judged.flatMap((j) => j.agents)).size > 1;
+    const tags = (j: Judged) => [...(j.kind === 'skill' ? [] : [j.kind]), ...(multi ? [j.agents.map((a) => short[a]).join('+')] : [])];
+    const label = (j: Judged) => `${j.name}${tags(j).length ? ` (${tags(j).join(', ')})` : ''}`;
+    const width = Math.min(48, Math.max(...shown.map((j) => label(j).length)));
     const repoWidth = Math.min(28, Math.max(...shown.map((j) => j.repo.length)));
     for (const j of shown) out.push(`  ${label(j).padEnd(width)}  ${dim(j.repo.padEnd(repoWidth))}  ${verdict === 'improve' ? amber(detail(j)) : dim(detail(j))}`);
     if (rows.length > shown.length) out.push(dim(`  … ${rows.length - shown.length} more (--top ${rows.length} shows them all)`));
@@ -69,13 +77,14 @@ export function renderVerdictsTerminal(v: VerdictView): string {
   if (r.unmatched.length) {
     out.push('', `${bold('USED, NOT IN THE SCAN')} ${bold(r.unmatched.length)}  ${dim('plugins, built-ins, or repos rookery didn\'t scan')}`);
     const shown = r.unmatched.slice(0, v.top);
-    out.push('  ' + shown.map((u) => `${u.name}${u.kind === 'subagent' ? ' (subagent)' : ''} ${bold(u.uses + '×')}`).join(dim('  ·  ')));
+    const multi = new Set(r.unmatched.map((u) => u.agent)).size > 1;
+    out.push('  ' + shown.map((u) => `${u.name}${u.kind === 'subagent' ? ' (subagent)' : ''}${multi ? dim(` ${short[u.agent]}`) : ''} ${bold(u.uses + '×')}`).join(dim('  ·  ')));
     if (r.unmatched.length > shown.length) out.push(dim(`  … ${r.unmatched.length - shown.length} more`));
   }
   const others = Object.entries(r.notJudged);
   if (others.length) {
     const total = others.reduce((n, [, c]) => n + c, 0);
-    out.push('', dim(`Not judged yet: ${count(total, 'artifact')} for ${others.map(([a]) => AGENT_NAMES[a] ?? a).join(', ')}. roost reads Claude Code logs so far.`));
+    out.push('', dim(`Not judged: ${count(total, 'artifact')} for ${others.map(([a]) => AGENT_NAMES[a] ?? a).join(', ')}. roost reads Claude Code, Codex and Gemini CLI logs.`));
   }
   out.push('', dim('Nothing leaves this machine. Verdicts use names, counts and dates only.'), '');
   return out.join('\n');
@@ -84,7 +93,7 @@ export function renderVerdictsTerminal(v: VerdictView): string {
 export function renderVerdictsJson(v: VerdictView): string {
   return JSON.stringify({
     tool: { name: 'roost', version: VERSION },
-    agent: 'claude-code',
+    agents: v.agents,
     window: v.window,
     sessions: v.sessions,
     first: v.first?.toISOString() ?? null,

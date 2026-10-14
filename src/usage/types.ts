@@ -33,6 +33,12 @@ export interface SessionUsage {
   tools: Map<string, number>;
 }
 
+export interface ReadResult {
+  sessions: SessionUsage[];
+  /** Lines or records roost couldn't read: not JSON, or without the expected shape. */
+  skipped: number;
+}
+
 export const noTokens = (): Tokens => ({ input: 0, cacheWrite: 0, cacheRead: 0, output: 0 });
 
 export function newSession(agent: AgentId, id: string): SessionUsage {

@@ -2,7 +2,7 @@ import { createReadStream, existsSync, statSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { basename, dirname, join } from 'node:path';
 import { walkFiles } from '../sources.js';
-import { bump, newSession, type SessionUsage } from './types.js';
+import { bump, newSession, type ReadResult, type SessionUsage } from './types.js';
 
 // ~/.claude/projects/<project>/<session>.jsonl, plus <session>/subagents/agent-<id>.jsonl (same sessionId)
 const MAX_DEPTH = 4;
@@ -22,11 +22,6 @@ const isObj = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !
 const str = (v: unknown) => (typeof v === 'string' && v ? v : undefined);
 const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : 0);
 
-export interface ReadResult {
-  sessions: SessionUsage[];
-  /** Lines roost couldn't read: not JSON, or a message without the expected shape. */
-  skipped: number;
-}
 
 /**
  * Read Claude Code session logs under `home`, keeping entries from `since` on.
