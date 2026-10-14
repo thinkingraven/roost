@@ -28,7 +28,7 @@ Every team ends up installing a *code-review* skill, a GitHub MCP server and a d
 
 **roost** answers that from the session logs your agents already keep on your machine. It reads a few months of logs in about a second, runs locally, never uploads anything, and keeps only names, counts, dates and token numbers: never your prompts.
 
-> **Early days.** `roost usage` reads Claude Code today. Codex and Gemini CLI, context cost and keep-or-retire verdicts are next: see the [roadmap](#roadmap).
+> **Early days.** `roost usage` and `roost verdicts` read Claude Code today. Codex and Gemini CLI and context cost are next: see the [roadmap](#roadmap).
 
 ## Quick start
 
@@ -43,6 +43,9 @@ node dist/src/cli.js usage                          # the last 30 days
 node dist/src/cli.js usage --since all              # all time
 node dist/src/cli.js usage --format json > usage.json
 node dist/src/cli.js sources                        # where each agent keeps its logs
+
+# keep, fix, merge or retire each skill: rookery's inventory joined with what ran
+npx @thinkingraven/rookery scan ~/code --local --format json | node dist/src/cli.js verdicts
 ```
 
 No logs of your own to hand? Try it on a made-up team:
@@ -66,6 +69,30 @@ Node 20 or newer.
 | **Built-in tools** | Bash, Edit, Read and the rest, for context. |
 
 `--format json` has every row, ready for a spreadsheet or your own dashboards.
+
+## Verdicts: what to keep, fix, merge or retire
+
+[rookery](https://github.com/thinkingraven/rookery) knows which skills, commands and subagents are installed and what's wrong with them. roost knows which ones ran. `roost verdicts` puts the two together:
+
+```bash
+npx @thinkingraven/rookery scan ~/code --local --format json | roost verdicts
+```
+
+| Verdict | When |
+|---|---|
+| **Fix first** | It's used, and rookery found quality or serious security problems in it. Fix these before anything else: people rely on them. |
+| **Merge** | rookery found copies of it. The copy that's used most stays; the others merge into it. |
+| **Retire** | It was available in your sessions and never ran. If a claude.ai or plugin copy with the same name ran instead, the verdict says so. |
+| **Keep** | It's used, and nothing needs fixing. |
+| **No data** | No session ran in its repo during the window, so there's nothing to judge. |
+
+How roost matches them:
+- **Ways a skill runs:** Claude choosing it, its name or folder name, or `/name` typed by you, all count.
+- **Where it applies:** a project skill counts only in sessions in its repo. A personal one in `~/.claude` counts everywhere, and wins over a project skill with the same name, as in Claude Code.
+- **Linked installs:** skills that `npx skills` links into `~/.claude/skills` are judged as Claude Code skills.
+- **Not in the scan:** names that ran but aren't in rookery's scan, such as built-in or plugin skills and repos you didn't scan, are listed separately.
+
+rookery 0.7.2 or later matches repos exactly. Older reports are matched by folder name. Use `--since` to change the window. Claude Code keeps 30 days of logs by default (`cleanupPeriodDays`).
 
 ## What it reads
 
@@ -154,7 +181,7 @@ Today roost reads one machine. Team summaries are on the roadmap: each person ex
 
 - **Codex and Gemini CLI** usage
 - **Context cost**: tokens loaded before the first prompt, and what each instruction file, skill description and MCP server costs per session
-- **Verdicts**: join usage with [rookery](https://github.com/thinkingraven/rookery)'s inventory to say keep, improve, merge or retire, with the tokens each change saves, ending in a pull request
+- **Verdicts, next steps**: Codex and Gemini CLI, the tokens each change saves, and a pull request that retires or merges for you
 - **Team summaries**: counts-only exports merged into one team report
 - **HTML and Markdown reports**, in rookery's style
 - **npm release**: `npx @thinkingraven/roost usage`
