@@ -23,7 +23,8 @@ Node 20 or newer.
 | `src/usage/claude-code.ts` | Reads Claude Code logs into per-session usage; repo resolution; built-in commands |
 | `src/usage/aggregate.ts` | Totals across sessions: skills, subagents, MCP servers, commands, tools, repos |
 | `src/usage/types.ts` | `SessionUsage` (names, counts, dates, tokens only) and name cleaning |
-| `src/report/*` | Terminal and JSON output for `sources` and `usage`; colours (`style.ts`), `~/…` paths and number formatting |
+| `src/verdicts.ts` | `roost verdicts`: reads rookery's JSON report and judges each Claude Code skill, command and subagent against the sessions |
+| `src/report/*` | Terminal and JSON output for `sources`, `usage` and `verdicts`; colours (`style.ts`), `~/…` paths and number formatting |
 | `scripts/demo-home.mjs` | Writes a made-up "acme" team's logs, in each agent's real layout, for screenshots and trying roost |
 | `src/version.ts` | Version from `package.json` |
 | `test/` | `node:test` suite with synthetic fixtures |
