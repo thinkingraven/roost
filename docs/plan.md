@@ -18,9 +18,9 @@ Teams install skills, subagents, rules files and MCP servers in every repo and e
 | Step | What | Status |
 |---|---|---|
 | 1. Sources | Find each agent's session logs on the machine | Done (`roost sources`) |
-| 2. Usage | Count skills, slash commands, subagents and MCP tools actually invoked, per repo and per agent, with token use | Claude Code done (`roost usage`); Codex and Gemini CLI next |
+| 2. Usage | Count skills, slash commands, subagents and MCP tools actually invoked, per repo and per agent, with token use | Done for Claude Code, Codex and Gemini CLI (`roost usage`) |
 | 3. Context tax | Tokens loaded before the first prompt: instruction files, rules, skill descriptions, MCP tool definitions; what each one costs per session | |
-| 4. Verdicts | Join usage with rookery's JSON inventory: **keep**, **improve**, **merge** (duplicate clusters, with the copy that wins) or **retire** (installed, never used), with the tokens each change saves | Claude Code done (`roost verdicts`, needs rookery 0.7.2+ for exact repo matching); token savings and the retire/merge PR next |
+| 4. Verdicts | Join usage with rookery's JSON inventory: **keep**, **improve**, **merge** (duplicate clusters, with the copy that wins) or **retire** (installed, never used), with the tokens each change saves | Done for Claude Code, Codex and Gemini CLI (`roost verdicts`, rookery 0.7.2+ for exact repo matching); token savings and the retire/merge PR next |
 | 5. Team | Each developer exports a summary (counts and names only); `roost merge` combines them into one team report | |
 | 6. Reports | Terminal, JSON, Markdown and a self-contained HTML page, in rookery's style; a retire/merge PR instead of just a chart | |
 

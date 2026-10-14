@@ -16,7 +16,9 @@ test('recovers the demo team\'s exact totals from 23k realistic log lines', () =
   const home = mkdtempSync(join(tmpdir(), 'roost-demo-'));
   assert.equal(spawnSync(process.execPath, [DEMO, home], { encoding: 'utf8' }).status, 0);
   const r = spawnSync(process.execPath, [CLI, 'usage', '--home', home, '--since', 'all', '--format', 'json'], { encoding: 'utf8', env });
-  const out = JSON.parse(r.stdout);
+  const doc = JSON.parse(r.stdout);
+  assert.deepEqual(doc.agents.map((a: { agent: string }) => a.agent), ['claude-code'], 'only agents with sessions');
+  const out = doc.agents[0];
   const skill = (n: string) => out.skills.find((s: { name: string }) => s.name === n)?.count;
   assert.equal(out.sessions, 41);
   assert.equal(out.repos.length, 6);

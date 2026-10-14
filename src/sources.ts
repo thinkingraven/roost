@@ -17,8 +17,8 @@ export const SOURCE_DEFS: readonly SourceDef[] = [
   { agent: 'claude-code', name: 'Claude Code', dir: ['.claude', 'projects'], session: /^[^/]+\/[^/]+\.jsonl$/ },
   // ~/.codex/sessions/<yyyy>/<mm>/<dd>/rollout-<time>-<id>.jsonl
   { agent: 'codex', name: 'Codex', dir: ['.codex', 'sessions'], session: /(^|\/)rollout-[^/]+\.jsonl$/ },
-  // ~/.gemini/tmp/<project-hash>/chats/session-<time>-<id>.json
-  { agent: 'gemini-cli', name: 'Gemini CLI', dir: ['.gemini', 'tmp'], session: /^[^/]+\/chats\/session-[^/]+\.json$/ },
+  // ~/.gemini/tmp/<project>/chats/session-<time>-<id>.jsonl (.json up to v0.22); subagent transcripts sit deeper
+  { agent: 'gemini-cli', name: 'Gemini CLI', dir: ['.gemini', 'tmp'], session: /^[^/]+\/chats\/session-[^/]+\.jsonl?$/ },
 ];
 
 export interface Source {
