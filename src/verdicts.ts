@@ -1,4 +1,4 @@
-import { basename, dirname, join } from 'node:path';
+import { basename, dirname } from 'node:path';
 import { BUILT_IN_COMMANDS } from './usage/claude-code.js';
 import type { SessionUsage } from './usage/types.js';
 
@@ -69,6 +69,12 @@ const JUDGED_KINDS = new Set(['skill', 'command', 'subagent']);
 const BUILT_IN_SUBAGENTS = new Set(['general-purpose', 'explore', 'plan', 'fork', 'statusline-setup', 'output-style-setup', 'claude-code-guide']);
 const SERIOUS = new Set(['critical', 'high', 'medium']);
 
+/** Paths compared the same way on every OS: forward slashes, no trailing slash, any case on Windows. */
+export function samePath(p: string, platform = process.platform): string {
+  const s = p.replace(/\\/g, '/').replace(/\/+$/, '');
+  return platform === 'win32' ? s.toLowerCase() : s;
+}
+
 /** The names an artifact answers to in the logs, as "skill:x", "command:/x" or "subagent:x" (lower case). */
 function keysFor(a: RookeryArtifact): string[] {
   const names = new Set<string>();
@@ -99,11 +105,11 @@ export function judge(rookery: RookeryReport, sessions: SessionUsage[], home: st
     return true;
   });
   const personal = (a: RookeryArtifact) => a.repo === '~' || a.repoRoot === '~';
-  const rootOf = (a: RookeryArtifact) => (a.repoRoot?.startsWith('~/') ? join(home, a.repoRoot.slice(2)) : a.repoRoot);
+  const rootOf = (a: RookeryArtifact) => (a.repoRoot?.startsWith('~/') ? `${samePath(home)}/${samePath(a.repoRoot.slice(2))}` : samePath(a.repoRoot ?? ''));
   const inScope = (a: RookeryArtifact, s: SessionUsage) => {
     if (personal(a)) return true;
     if (!s.repo) return false;
-    return a.repoRoot !== undefined ? rootOf(a) === s.repo : basename(s.repo) === a.repo;
+    return a.repoRoot !== undefined ? rootOf(a) === samePath(s.repo) : basename(s.repo) === a.repo;
   };
 
   const stats = new Map(arts.map((a) => [a.id, { uses: 0, sessions: 0, scopeSessions: 0, lastUsed: null as Date | null }]));

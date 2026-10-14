@@ -121,6 +121,14 @@ test('verdicts: reports from rookery before 0.7.2 match repos by folder name', (
   assert.match(renderVerdictsTerminal({ report: r, window: 'last 30 days', sessions: 1, first: null, last: null, rookery: { version: '0.7.1' }, top: 10 }), /matched by folder name/);
 });
 
+test('verdicts: repo paths compare the same on every OS', async () => {
+  const { samePath } = await import('../src/verdicts.js');
+  assert.equal(samePath('C:\\Users\\dev\\code\\Shop\\', 'win32'), 'c:/users/dev/code/shop');
+  assert.equal(samePath('/home/dev/code/Shop/', 'linux'), '/home/dev/code/Shop');
+  const r = judge(report([art('shop', '.claude/skills/fmt/SKILL.md', 'fmt')]), [session('C:\\Users\\dev\\code\\shop', { skills: { fmt: 1 } })], 'C:\\Users\\dev');
+  assert.equal(verdictOf(r, 'fmt').verdict, 'keep', 'a Windows session path matches a ~/ repo root');
+});
+
 test('verdicts: only a rookery JSON report is accepted', () => {
   assert.throws(() => parseRookery('not json'), InputError);
   assert.throws(() => parseRookery('{"tool":{"name":"other"},"artifacts":[]}'), /not a rookery report/);
