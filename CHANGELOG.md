@@ -2,7 +2,10 @@
 
 All notable changes to roost are listed here. This project follows [semantic versioning](https://semver.org).
 
-## Unreleased
+## 0.1.0 — 2026-10-14
+
+The first release on npm: `npx @thinkingraven/roost usage`.
+
 
 - **`roost verdicts`**: rookery's inventory joined with what Claude Code actually ran. Each skill, command and subagent gets one of five verdicts:
   - **fix first:** used, with quality or serious security findings;
