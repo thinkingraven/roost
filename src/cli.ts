@@ -11,6 +11,8 @@ import { aggregate } from './usage/aggregate.js';
 import { AGENTS, type AgentDef } from './usage/agents.js';
 import { renderVerdictsJson, renderVerdictsTerminal } from './report/verdicts.js';
 import { InputError, judge, parseRookery } from './verdicts.js';
+import { aggregateContext } from './context.js';
+import { renderContextJson, renderContextTerminal } from './report/context.js';
 import { runExport } from './export/run.js';
 import { VERSION } from './version.js';
 
@@ -26,6 +28,7 @@ Usage
                                  company's OpenTelemetry backend (Grafana, Loki, OpenObserve, a Collector)
   roost export --send            Send the finished days not sent yet. Needs ROOST_EXPORT=on and
                                  OTEL_EXPORTER_OTLP_ENDPOINT / OTEL_EXPORTER_OTLP_HEADERS
+  roost context                  Context tax: tokens loaded before anyone types a real prompt, per session
   roost sources                  Find each agent's session logs on this machine
 
 Options
@@ -104,7 +107,7 @@ async function main(argv: string[]): Promise<number> {
   if (positionals.length === 0) { process.stdout.write(HELP); return 0; }
 
   const [command, ...rest] = positionals;
-  if (!['sources', 'usage', 'verdicts', 'export'].includes(command)) fail(`unknown command "${command}"`);
+  if (!['sources', 'usage', 'verdicts', 'export', 'context'].includes(command)) fail(`unknown command "${command}"`);
   if (rest.length) fail(`unexpected argument "${rest[0]}"`);
   if (o.format !== 'terminal' && o.format !== 'json' && !(command === 'export' && o.format === 'otlp')) fail(`--format must be terminal or json${command === 'export' ? ' or otlp' : ''}, not "${o.format}"`);
   if (command !== 'export' && (o.send || o.endpoint || o.team)) fail('--send, --endpoint and --team are options of roost export');
@@ -162,6 +165,13 @@ async function main(argv: string[]): Promise<number> {
       rookery: { version: rookery.tool.version, scannedAt: rookery.scannedAt }, top, color,
     };
     process.stdout.write(o.format === 'json' ? renderVerdictsJson(view) : renderVerdictsTerminal(view));
+    return 0;
+  }
+  if (command === 'context') {
+    const read = await Promise.all(chosen.map((def) => def.read(home, since)));
+    const sessions = read.flatMap((r) => r.sessions);
+    const view = { report: aggregateContext(sessions), window, home, top, color };
+    process.stdout.write(o.format === 'json' ? renderContextJson(view) : renderContextTerminal(view));
     return 0;
   }
 

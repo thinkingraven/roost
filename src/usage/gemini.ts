@@ -166,7 +166,9 @@ export async function readGemini(home: string, since?: Date, opts: ReadOptions =
     const table = sessionTable('gemini-cli', opts.byDay);
     const pieceAt = (when?: Date) => { const s = table.get(g.id, when); s.cwd = g.root; s.repo = repo; return s; };
     const seenCalls = new Set<string>();
-    const count = (messages: Map<string, Obj>) => {
+    // Preload is the top-level conversation's first turn, so only tracked for isMain=true calls.
+    const preloadWhen = new Map<SessionUsage, Date>();
+    const count = (messages: Map<string, Obj>, isMain: boolean) => {
       for (const m of messages.values()) {
         const when = date(m.timestamp);
         if ((since && when && when < since) || (opts.until && when && when >= opts.until)) continue;
@@ -176,9 +178,19 @@ export async function readGemini(home: string, since?: Date, opts: ReadOptions =
         if (m.type !== 'gemini') continue;
         if (isObj(m.tokens)) {
           const t = m.tokens;
-          s.tokens.input += Math.max(0, num(t.input) - num(t.cached)) + num(t.tool);
-          s.tokens.cacheRead += num(t.cached);
-          s.tokens.output += num(t.output) + num(t.thoughts);
+          const input = Math.max(0, num(t.input) - num(t.cached)) + num(t.tool);
+          const cacheRead = num(t.cached);
+          const output = num(t.output) + num(t.thoughts);
+          s.tokens.input += input;
+          s.tokens.cacheRead += cacheRead;
+          s.tokens.output += output;
+          if (isMain && when) {
+            const seenAt = preloadWhen.get(s);
+            if (!seenAt || when < seenAt) {
+              preloadWhen.set(s, when);
+              s.preload = { input, cacheWrite: 0, cacheRead, output };
+            }
+          }
         }
         if (!Array.isArray(m.toolCalls)) continue;
         for (const call of m.toolCalls) {
@@ -189,8 +201,8 @@ export async function readGemini(home: string, since?: Date, opts: ReadOptions =
         }
       }
     };
-    count(g.messages);
-    for (const msgs of g.subagents.values()) count(msgs);
+    count(g.messages, true);
+    for (const msgs of g.subagents.values()) count(msgs, false);
     for (const c of commands.get(g.id)?.values() ?? []) {
       const s = pieceAt(c.when ?? g.start);
       bump(s.commands, c.name);

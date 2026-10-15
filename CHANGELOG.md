@@ -2,6 +2,12 @@
 
 All notable changes to roost are listed here. This project follows [semantic versioning](https://semver.org).
 
+## 0.4.0 — 2026-10-16
+
+- **`roost context`: context tax.** Each session now carries `preload`: the usage of its first top-level turn (never a subagent's) — the system prompt, instructions, skill descriptions and MCP tool definitions, all sent before anyone types a real prompt. `roost context` reports the average, a trend per repo (growing, steady or shrinking, comparing its earliest and latest measured sessions), and the heaviest sessions overall. `--since`, `--top`, `--format json`.
+  - Measured directly from each agent's own usage field — Claude Code's first `cache_creation_input_tokens`/`cache_read_input_tokens`, Codex's first `token_count`/`token_usage_record` (whichever the session's totals already prefer), Gemini CLI's first `tokens` object by timestamp (not file order) — never a guess.
+  - Does **not** attribute the cost to a specific skill, rules file or MCP server: rookery's own per-artifact token count is the wrong unit for that today (a skill's whole file, when only its description preloads; an MCP server's config, not its tool-definition schemas). The report says so.
+
 ## 0.3.0 — 2026-10-15
 
 - **`roost export`: daily, counts-only summaries for your dashboards.** Sent as OpenTelemetry logs (OTLP/HTTP JSON) to Grafana Cloud, Loki, OpenObserve or any OpenTelemetry Collector.

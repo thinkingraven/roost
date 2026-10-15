@@ -105,6 +105,31 @@ test('counts each response\'s tokens once, subagents included', async () => {
   assert.deepEqual(a?.tokens, { input: 50, cacheWrite: 500, cacheRead: 5000, output: 25 });
 });
 
+test('preload is the top-level conversation\'s first turn, never a sidechain\'s, by time rather than file order', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'roost-preload-'));
+  const repo = join(home, 'code', 'solo');
+  mkdirSync(join(repo, '.git'), { recursive: true });
+  const write = (rel: string, lines: unknown[]) => {
+    const path = join(home, '.claude', 'projects', rel);
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, lines.map((l) => JSON.stringify(l)).join('\n') + '\n');
+  };
+  const msg = (id: string, ts: string, isSidechain: boolean, u: object) => ({
+    type: 'assistant', uuid: `u-${id}`, sessionId: 's1', cwd: repo, timestamp: ts, isSidechain,
+    message: { role: 'assistant', id, model: 'claude-x', usage: u, content: [] },
+  });
+  write('-code-solo/s1.jsonl', [
+    // A sidechain (subagent) entry timestamped before the main conversation even starts: it must
+    // not win preload just because it's chronologically first or processed first.
+    msg('side', '2026-10-01T09:59:00Z', true, { input_tokens: 1, cache_creation_input_tokens: 99999, cache_read_input_tokens: 99999, output_tokens: 99999 }),
+    msg('m1', '2026-10-01T10:00:00Z', false, { input_tokens: 2, cache_creation_input_tokens: 26290, cache_read_input_tokens: 35136, output_tokens: 242 }),
+    msg('m2', '2026-10-01T10:05:00Z', false, { input_tokens: 5, cache_creation_input_tokens: 200, cache_read_input_tokens: 61426, output_tokens: 943 }),
+  ]);
+  const { sessions } = await readClaudeCode(home, SINCE);
+  const s = sessions.find((x) => x.id === 's1');
+  assert.deepEqual(s?.preload, { input: 2, cacheWrite: 26290, cacheRead: 35136, output: 242 });
+});
+
 test('attributes sessions to repos, folding worktrees into their repo', async () => {
   const { home, shop, api } = fixture();
   const { sessions, skipped } = await readClaudeCode(home, SINCE);
