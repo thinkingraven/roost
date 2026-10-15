@@ -14,6 +14,8 @@ export interface Tokens {
 export interface SessionUsage {
   agent: AgentId;
   id: string;
+  /** With `byDay`, the UTC day (YYYY-MM-DD) these counts belong to: one SessionUsage per session per day. */
+  day?: string;
   /** Working folder the session ran in, as logged. */
   cwd?: string;
   /** The repo it belongs to: nearest git root of `cwd`, worktrees folded in. */
@@ -31,6 +33,30 @@ export interface SessionUsage {
   commands: Map<string, number>;
   /** Built-in tool → calls */
   tools: Map<string, number>;
+}
+
+export interface ReadOptions {
+  /** Leave out everything at or after this time (for example, today, which isn't finished). */
+  until?: Date;
+  /** Split each session's counts by UTC day, so a session that runs past midnight or is resumed counts on each day once. */
+  byDay?: boolean;
+}
+
+export const dayOf = (d: Date) => d.toISOString().slice(0, 10);
+
+/** Sessions keyed by id, or by id and day when counts are split by day. */
+export function sessionTable(agent: AgentId, byDay = false) {
+  const map = new Map<string, SessionUsage>();
+  return {
+    map,
+    get(id: string, when?: Date): SessionUsage {
+      const day = byDay && when && !Number.isNaN(when.getTime()) ? dayOf(when) : undefined;
+      const key = day ? `${id}|${day}` : id;
+      let s = map.get(key);
+      if (!s) { s = newSession(agent, id); if (day) s.day = day; map.set(key, s); }
+      return s;
+    },
+  };
 }
 
 export interface ReadResult {

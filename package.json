@@ -1,6 +1,6 @@
 {
   "name": "@thinkingraven/roost",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "See what your AI agents actually use: skills, subagents, MCP servers and context cost, read locally from agent session logs, so teams keep what works and retire the rest. Claude Code, Codex and Gemini CLI.",
   "keywords": [
     "claude-code",
@@ -27,7 +27,8 @@
   "files": [
     "dist/src",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "dashboards"
   ],
   "engines": {
     "node": ">=20"
@@ -35,7 +36,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "npm run build && node --test dist/test/*.test.js",
-    "prepublishOnly": "npm test"
+    "prepublishOnly": "npm test",
+    "dashboard": "node scripts/gen-grafana-dashboard.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.6.4",

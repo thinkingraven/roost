@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { resolveRepo } from './claude-code.js';
-import { bump, newSession, type ReadResult, type SessionUsage } from './types.js';
+import { bump, sessionTable, type ReadOptions, type ReadResult, type SessionUsage } from './types.js';
 
 /**
  * Gemini CLI keeps each session under ~/.gemini/tmp/<project>/chats/:
@@ -51,11 +51,11 @@ function list(dir: string) {
 }
 
 /** Read Gemini CLI sessions under `home` (~/.gemini, and ~/.cache/.gemini when sandboxed), keeping messages from `since` on. */
-export async function readGemini(home: string, since?: Date): Promise<ReadResult> {
+export async function readGemini(home: string, since?: Date, opts: ReadOptions = {}): Promise<ReadResult> {
   const roots = [join(home, '.gemini'), join(home, '.cache', '.gemini')].filter((r) => existsSync(join(r, 'tmp')));
   let skipped = 0;
   const sessions = new Map<string, Gathered>();
-  const commands = new Map<string, Map<string, string>>(); // session id → message id → command name
+  const commands = new Map<string, Map<string, { name: string; when?: Date }>>(); // session id → message id → command
 
   // Project roots by folder: .project_root files, and sha256 of every root roost knows of (for older hash folders).
   const byHash = new Map<string, string>();
@@ -148,11 +148,11 @@ export async function readGemini(home: string, since?: Date): Promise<ReadResult
           if (!isObj(e) || e.type !== 'user' || typeof e.message !== 'string') continue;
           const first = e.message.trim().split(/\s/, 1)[0];
           const when = date(e.timestamp);
-          if (!COMMAND.test(first) || (since && when && when < since)) continue;
+          if (!COMMAND.test(first) || (since && when && when < since) || (opts.until && when && when >= opts.until)) continue;
           const sid = str(e.sessionId);
           if (!sid) continue;
-          const per = commands.get(sid) ?? new Map<string, string>();
-          per.set(String(e.messageId ?? `${when?.getTime()}`), first);
+          const per = commands.get(sid) ?? new Map<string, { name: string; when?: Date }>();
+          per.set(String(e.messageId ?? `${when?.getTime()}`), { name: first, when });
           commands.set(sid, per);
         }
       } catch { /* no input log */ }
@@ -161,15 +161,16 @@ export async function readGemini(home: string, since?: Date): Promise<ReadResult
 
   const out: SessionUsage[] = [];
   for (const g of sessions.values()) {
-    const s = newSession('gemini-cli', g.id);
     if (!g.root && g.projectHash) g.root = byHash.get(g.projectHash);
-    s.cwd = g.root;
-    s.repo = resolveRepo(g.root);
+    const repo = resolveRepo(g.root);
+    const table = sessionTable('gemini-cli', opts.byDay);
+    const pieceAt = (when?: Date) => { const s = table.get(g.id, when); s.cwd = g.root; s.repo = repo; return s; };
     const seenCalls = new Set<string>();
     const count = (messages: Map<string, Obj>) => {
       for (const m of messages.values()) {
         const when = date(m.timestamp);
-        if (since && when && when < since) continue;
+        if ((since && when && when < since) || (opts.until && when && when >= opts.until)) continue;
+        const s = pieceAt(when);
         if (when && (!s.first || when < s.first)) s.first = when;
         if (when && (!s.last || when > s.last)) s.last = when;
         if (m.type !== 'gemini') continue;
@@ -190,7 +191,16 @@ export async function readGemini(home: string, since?: Date): Promise<ReadResult
     };
     count(g.messages);
     for (const msgs of g.subagents.values()) count(msgs);
-    for (const name of commands.get(g.id)?.values() ?? []) bump(s.commands, name);
+    for (const c of commands.get(g.id)?.values() ?? []) {
+      const s = pieceAt(c.when ?? g.start);
+      bump(s.commands, c.name);
+      if (opts.byDay && c.when) {
+        if (!s.first || c.when < s.first) s.first = c.when;
+        if (!s.last || c.when > s.last) s.last = c.when;
+      }
+    }
+    if (opts.byDay) { out.push(...[...table.map.values()].filter((s) => s.first || s.last)); continue; }
+    const s = pieceAt();
     if (!s.first && !s.last) {
       // A session with no messages in the window: keep it only if its dates fall inside.
       if (!g.updated || (since && g.updated < since)) continue;

@@ -3,7 +3,7 @@ import { createInterface } from 'node:readline';
 import { join } from 'node:path';
 import { walkFiles } from '../sources.js';
 import { resolveRepo } from './claude-code.js';
-import { bump, newSession, noTokens, type ReadResult, type SessionUsage, type Tokens } from './types.js';
+import { bump, noTokens, sessionTable, type ReadOptions, type ReadResult, type SessionUsage, type Tokens } from './types.js';
 
 /**
  * Codex keeps one rollout per thread: ~/.codex/sessions/<yyyy>/<mm>/<dd>/rollout-<time>-<id>.jsonl (and archived_sessions/).
@@ -40,23 +40,24 @@ const MAX_DEPTH = 5;
 
 /** Per-thread state while reading one rollout file. */
 interface Thread {
-  session: SessionUsage;
+  id: string;
+  cwd?: string;
   prevTotal: number;
-  /** call_id → "server/tool" guessed from the call's namespace, until an end event names them. */
-  mcpCalls: Map<string, string>;
+  /** call_id → "server/tool" guessed from the call's namespace (and the session it belongs to), until an end event names them. */
+  mcpCalls: Map<string, { guess: string; session: SessionUsage }>;
   mcpNames: Map<string, string>;
-  /** Tokens from token_count events and from token_usage_record lines; a file's records win when it has any. */
-  fromCounts: Tokens;
-  fromRecords: Tokens | null;
+  /** Tokens per session (or per session-day) from token_count events and from token_usage_record lines; a file's records win when it has any. */
+  tokens: Map<SessionUsage, { fromCounts: Tokens; fromRecords: Tokens }>;
+  hasRecords: boolean;
 }
 
-export async function readCodex(home: string, since?: Date): Promise<ReadResult> {
+export async function readCodex(home: string, since?: Date, opts: ReadOptions = {}): Promise<ReadResult> {
   const files: string[] = [];
   for (const dir of ['sessions', 'archived_sessions']) {
     walkFiles(join(home, '.codex', dir), MAX_DEPTH, (file) => { if (/(^|[\\/])rollout-[^\\/]+\.jsonl$/.test(file)) files.push(file); });
   }
   files.sort();
-  const sessions = new Map<string, SessionUsage>();
+  const sessions = sessionTable('codex', opts.byDay);
   const seenCalls = new Set<string>();
   const seenResponses = new Set<string>();
   let skipped = 0;
@@ -65,6 +66,7 @@ export async function readCodex(home: string, since?: Date): Promise<ReadResult>
     if (since) { try { if (statSync(file).mtime < since) continue; } catch { continue; } }
     let t: Thread | undefined;
     let copying = false;   // inside a fork's copy of its parent
+    let lastWhen: Date | undefined;
     const lines = createInterface({ input: createReadStream(file), crlfDelay: Infinity });
     for await (const line of lines) {
       if (!line.trim()) continue;
@@ -72,16 +74,14 @@ export async function readCodex(home: string, since?: Date): Promise<ReadResult>
       try { entry = JSON.parse(line); } catch { skipped++; continue; }
       if (!isObj(entry) || !isObj(entry.payload) || !str(entry.type)) { skipped++; continue; }
       const p = entry.payload;
-      const when = new Date(str(entry.timestamp) ?? NaN);
+      let when = new Date(str(entry.timestamp) ?? NaN);
+      if (Number.isNaN(when.getTime())) when = lastWhen ?? when; else lastWhen = when;
 
       if (entry.type === 'session_meta') {
         if (t) { copying = true; continue; }   // a second session_meta: the parent's lines follow
         const parent = isObj(p.source) && isObj(p.source.subagent) && isObj(p.source.subagent.thread_spawn) ? str(p.source.subagent.thread_spawn.parent_thread_id) : undefined;
         const id = parent ?? str(p.parent_thread_id) ?? str(p.id) ?? file;
-        let session = sessions.get(id);
-        if (!session) sessions.set(id, (session = newSession('codex', id)));
-        session.cwd ??= str(p.cwd);
-        t = { session, prevTotal: 0, mcpCalls: new Map(), mcpNames: new Map(), fromCounts: noTokens(), fromRecords: null };
+        t = { id, cwd: str(p.cwd), prevTotal: 0, mcpCalls: new Map(), mcpNames: new Map(), tokens: new Map(), hasRecords: false };
         continue;
       }
       if (!t) continue;   // nothing before the thread's own metadata counts
@@ -90,20 +90,28 @@ export async function readCodex(home: string, since?: Date): Promise<ReadResult>
         else if (entry.type === 'event_msg' && p.type === 'token_count') t.prevTotal = totalOf(p) ?? t.prevTotal;
         continue;
       }
-      if (since && !Number.isNaN(when.getTime()) && when < since) continue;
-      const s = t.session;
-      if (!Number.isNaN(when.getTime())) {
+      const known = !Number.isNaN(when.getTime());
+      if ((since && known && when < since) || (opts.until && known && when >= opts.until)) {
+        // Outside the window, but the running total still moves: a repeat just inside it must not count again.
+        if (entry.type === 'event_msg' && p.type === 'token_count') t.prevTotal = totalOf(p) ?? t.prevTotal;
+        continue;
+      }
+      const s = sessions.get(t.id, known ? when : undefined);
+      s.cwd ??= t.cwd;
+      let tk = t.tokens.get(s);
+      if (!tk) t.tokens.set(s, (tk = { fromCounts: noTokens(), fromRecords: noTokens() }));
+      if (known) {
         if (!s.first || when < s.first) s.first = when;
         if (!s.last || when > s.last) s.last = when;
       }
 
-      if (entry.type === 'response_item') recordItem(t, p, seenCalls);
+      if (entry.type === 'response_item') recordItem(t, s, p, seenCalls);
       else if (entry.type === 'token_usage_record') {
         const id = str(p.response_id);
-        t.fromRecords ??= noTokens();
+        t.hasRecords = true;
         if (id && seenResponses.has(id)) continue;
         if (id) seenResponses.add(id);
-        if (isObj(p.usage)) addUsage(t.fromRecords, p.usage);
+        if (isObj(p.usage)) addUsage(tk.fromRecords, p.usage);
       } else if (entry.type === 'event_msg') {
         if (p.type === 'token_count') {
           const total = totalOf(p);
@@ -112,7 +120,7 @@ export async function readCodex(home: string, since?: Date): Promise<ReadResult>
           const info = p.info as Obj;
           const last = isObj(info.last_token_usage) ? info.last_token_usage : undefined;
           const reset = isObj(info.total_token_usage) && num(info.total_token_usage.input_tokens) === 0 && num(info.total_token_usage.output_tokens) === 0;
-          if (last && !reset) addUsage(t.fromCounts, last);
+          if (last && !reset) addUsage(tk.fromCounts, last);
         } else if (p.type === 'mcp_tool_call_end' && isObj(p.invocation)) {
           const id = str(p.call_id), server = str(p.invocation.server), tool = str(p.invocation.tool);
           if (id && server && tool) t.mcpNames.set(id, `${server}/${tool}`);
@@ -123,12 +131,14 @@ export async function readCodex(home: string, since?: Date): Promise<ReadResult>
       }
     }
     if (!t) continue;
-    for (const [id, guess] of t.mcpCalls) bump(t.session.mcp, t.mcpNames.get(id) ?? guess);
-    const used = t.fromRecords ?? t.fromCounts;
-    for (const k of ['input', 'cacheWrite', 'cacheRead', 'output'] as const) t.session.tokens[k] += used[k];
+    for (const [id, call] of t.mcpCalls) bump(call.session.mcp, t.mcpNames.get(id) ?? call.guess);
+    for (const [session, tk] of t.tokens) {
+      const used = t.hasRecords ? tk.fromRecords : tk.fromCounts;
+      for (const k of ['input', 'cacheWrite', 'cacheRead', 'output'] as const) session.tokens[k] += used[k];
+    }
   }
 
-  const all = [...sessions.values()].filter((s) => s.first || s.last);
+  const all = [...sessions.map.values()].filter((s) => s.first || s.last);
   for (const s of all) s.repo = resolveRepo(s.cwd);
   return { sessions: all, skipped };
 }
@@ -145,8 +155,7 @@ function addUsage(into: Tokens, u: Obj): void {
   into.output += num(u.output_tokens);
 }
 
-function recordItem(t: Thread, p: Obj, seenCalls: Set<string>): void {
-  const s = t.session;
+function recordItem(t: Thread, s: SessionUsage, p: Obj, seenCalls: Set<string>): void {
   const type = str(p.type);
   if (type === 'message') {
     if (p.role !== 'user' || !Array.isArray(p.content)) return;
@@ -166,7 +175,7 @@ function recordItem(t: Thread, p: Obj, seenCalls: Set<string>): void {
       // Sanitised names: only a guess at the server. The end event, if any, replaces it.
       const [server, ...tool] = ns ? [ns.slice(5), name] : name.slice(5).split('__');
       const guess = `${server || '?'}/${tool.join('__') || '?'}`;
-      if (callId) t.mcpCalls.set(callId, guess); else bump(s.mcp, guess);
+      if (callId) t.mcpCalls.set(callId, { guess, session: s }); else bump(s.mcp, guess);
       return;
     }
     if (name === 'spawn_agent') {

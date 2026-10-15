@@ -11,6 +11,7 @@ import { aggregate } from './usage/aggregate.js';
 import { AGENTS, type AgentDef } from './usage/agents.js';
 import { renderVerdictsJson, renderVerdictsTerminal } from './report/verdicts.js';
 import { InputError, judge, parseRookery } from './verdicts.js';
+import { runExport } from './export/run.js';
 import { VERSION } from './version.js';
 
 const HELP = `roost v${VERSION}: see what your AI agents actually use.
@@ -21,20 +22,28 @@ Usage
   roost verdicts                 Keep, fix, merge or retire each skill: rookery's inventory joined
                                  with what your agents actually ran. Pipe rookery's JSON in:
                                    rookery scan ~/code --local --format json | roost verdicts
+  roost export                   Preview the daily, counts-only summaries roost can send to your
+                                 company's OpenTelemetry backend (Grafana, Loki, OpenObserve, a Collector)
+  roost export --send            Send the finished days not sent yet. Needs ROOST_EXPORT=on and
+                                 OTEL_EXPORTER_OTLP_ENDPOINT / OTEL_EXPORTER_OTLP_HEADERS
   roost sources                  Find each agent's session logs on this machine
 
 Options
-  --since <30d|YYYY-MM-DD|all>   Time window for usage and verdicts (default: 30d)
+  --since <30d|YYYY-MM-DD|all>   Time window (default: 30d; for export, the days not sent yet, or 7d)
   --agent <name>                 claude-code, codex, gemini or all (default: all with sessions)
   --rookery <file>               rookery's JSON report for verdicts (or pipe it in; - reads stdin)
   --top <n>                      Rows per section in the terminal report (default: 10)
-  --format <terminal|json>       Output format (default: terminal)
+  --format <terminal|json>       Output format (default: terminal); export also takes otlp
+  --send                         export: send to the configured endpoint (the only network use)
+  --endpoint <url>               export: OTLP/HTTP base URL instead of OTEL_EXPORTER_OTLP_ENDPOINT
+  --team <name>                  export: team label (or ROOST_TEAM)
   --home <dir>                   Look in this home folder instead of yours
   --no-color                     Disable colours (also respects NO_COLOR; FORCE_COLOR forces them)
   -v, --version                  Print the version
   -h, --help                     Show this help
 
-roost runs locally and never uploads anything. Reports carry names, counts and dates only.
+roost runs locally. Only \`roost export --send\` uses the network, to the endpoint you configure.
+Everything roost reports or sends carries names, counts and dates only.
 `;
 
 function fail(msg: string): never {
@@ -72,7 +81,10 @@ async function main(argv: string[]): Promise<number> {
       args: argv,
       allowPositionals: true,
       options: {
-        since: { type: 'string', default: '30d' },
+        since: { type: 'string' },
+        send: { type: 'boolean', default: false },
+        endpoint: { type: 'string' },
+        team: { type: 'string' },
         top: { type: 'string', default: '10' },
         format: { type: 'string', default: 'terminal' },
         home: { type: 'string' },
@@ -92,9 +104,10 @@ async function main(argv: string[]): Promise<number> {
   if (positionals.length === 0) { process.stdout.write(HELP); return 0; }
 
   const [command, ...rest] = positionals;
-  if (command !== 'sources' && command !== 'usage' && command !== 'verdicts') fail(`unknown command "${command}"`);
+  if (!['sources', 'usage', 'verdicts', 'export'].includes(command)) fail(`unknown command "${command}"`);
   if (rest.length) fail(`unexpected argument "${rest[0]}"`);
-  if (o.format !== 'terminal' && o.format !== 'json') fail(`--format must be terminal or json, not "${o.format}"`);
+  if (o.format !== 'terminal' && o.format !== 'json' && !(command === 'export' && o.format === 'otlp')) fail(`--format must be terminal or json${command === 'export' ? ' or otlp' : ''}, not "${o.format}"`);
+  if (command !== 'export' && (o.send || o.endpoint || o.team)) fail('--send, --endpoint and --team are options of roost export');
   const home = o.home ? resolve(o.home) : homedir();
   const color = useColor(o['no-color']);
 
@@ -109,7 +122,23 @@ async function main(argv: string[]): Promise<number> {
   const chosen: readonly AgentDef[] = o.agent === 'all' ? AGENTS : AGENTS.filter((a) => a.flag === o.agent);
   const top = Number(o.top);
   if (!Number.isInteger(top) || top < 1) fail(`--top must be a whole number of 1 or more, not "${o.top}"`);
-  const { since, window } = parseSince(o.since);
+  if (command === 'export') {
+    let rookery;
+    if (o.rookery) {
+      try { rookery = parseRookery(o.rookery === '-' ? await readStdin() : readFileSync(o.rookery, 'utf8')); } catch (err) {
+        if (err instanceof InputError) fail(err.message);
+        fail(`can't read ${o.rookery}: ${(err as Error).message}`);
+      }
+    }
+    const r = await runExport({
+      home, env: process.env, agents: chosen, since: o.since, send: o.send as boolean, format: o.format as 'terminal' | 'json' | 'otlp',
+      endpoint: o.endpoint, team: o.team, rookery, top, color,
+    });
+    process.stdout.write(r.stdout);
+    process.stderr.write(r.stderr);
+    return r.exitCode;
+  }
+  const { since, window } = parseSince(o.since ?? '30d');
   if (command === 'verdicts') {
     const source = o.rookery ?? (process.stdin.isTTY ? undefined : '-');
     if (!source) fail('verdicts needs rookery\'s JSON report. Pipe it in:\n  rookery scan ~/code --local --format json | roost verdicts\nor save it and pass --rookery report.json');

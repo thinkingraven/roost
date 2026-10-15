@@ -96,6 +96,22 @@ How roost matches them:
 
 rookery 0.7.2 or later matches repos exactly. Older reports are matched by folder name. Use `--since` to change the window. Claude Code keeps 30 days of logs by default (`cleanupPeriodDays`).
 
+## Send it to your dashboards
+
+`roost export` turns the same counts into small daily summaries for your company's own OpenTelemetry backend: Grafana Cloud, Loki, OpenObserve, or any OpenTelemetry Collector. The repo ships a starter Grafana dashboard covering adoption, cost, skills that work (with team-wide verdicts) and safety.
+
+```bash
+npx @thinkingraven/roost export                    # preview: exactly what would be sent, nothing sent
+ROOST_EXPORT=on npx @thinkingraven/roost export --send   # uses OTEL_EXPORTER_OTLP_ENDPOINT and _HEADERS
+```
+
+What it sends:
+- **Counts only:** names, counts, dates and token numbers. A hashed person id, a team label, and repos as `host/org/repo`.
+- **Never:** prompts, code, arguments, file paths or emails.
+- **Finished days only:** each day is sent once.
+
+Grafana Cloud setup, a company-wide rollout and the full list of fields: [docs/export.md](docs/export.md).
+
 ## What it reads
 
 | Agent | Session logs | `sources` | `usage` |
@@ -157,7 +173,7 @@ flowchart LR
 
 ## Privacy
 
-- Runs entirely on your machine. No network requests, no telemetry.
+- Runs entirely on your machine, with no telemetry. The one exception is opt-in: `roost export --send` posts counts to the OpenTelemetry endpoint you configure, after an explicit `ROOST_EXPORT=on`. Nothing else uses the network.
 - `roost sources` only lists file names and dates; it never opens your logs.
 - `roost usage` parses log lines to find tool calls, but keeps only names, counts, dates and token numbers. Your prompts, the agents' replies, tool inputs and tool results never reach a report, and tests check that on every change.
 - Paths under your home folder are shown as `~/…`.
