@@ -39,6 +39,7 @@ npx @thinkingraven/roost usage --agent codex       # one agent: claude-code, cod
 npx @thinkingraven/roost usage --since all         # all time
 npx @thinkingraven/roost context                   # context tax: tokens loaded before the first prompt
 npx @thinkingraven/roost sources                   # where each agent keeps its logs
+npx @thinkingraven/roost decisions                 # what rookery's runtime hook blocked or warned about
 
 # keep, fix, merge or retire each skill: rookery's inventory joined with what ran
 npx @thinkingraven/rookery scan ~/code --local --format json | npx @thinkingraven/roost verdicts
@@ -96,6 +97,36 @@ How roost matches them:
 - **Not in the scan:** names that ran but aren't in rookery's scan, such as built-in or plugin skills and repos you didn't scan, are listed separately.
 
 rookery 0.7.2 or later matches repos exactly. Older reports are matched by folder name. Use `--since` to change the window. Claude Code keeps 30 days of logs by default (`cleanupPeriodDays`).
+
+## Decisions: what rookery's hook blocked
+
+[rookery's runtime hook](https://github.com/thinkingraven/rookery/blob/main/docs/policy.md#rookery-hook-enforce-the-policy-while-agents-run) checks every tool call against a repo's `.rookery.yml` while an agent works, and logs each deny or warn to `~/.rookery/decisions/`. `roost decisions` reads that log:
+
+```bash
+npx @thinkingraven/roost decisions
+```
+
+```text
+roost. v0.4.0  ·  decisions  ·  rookery’s policy log  ·  last 30 days
+
+DENIED 2  stopped before the agent ran it
+WARNED 1  allowed, logged
+
+BY RULE
+  files.read_secrets    1  cat ~/.ssh/**
+  RK-POL-001            1  --dangerously-skip-permissions
+  RK-POL-003            1  rm -rf ~/
+
+BY AGENT
+  Claude Code 2  ·  Codex 1
+
+BY REPO
+  payments-api 2  ·  web-app 1
+
+Nothing leaves this machine. rookery already redacts what it logs: first tokens and ~ paths only.
+```
+
+`roost export` already turns this same log into `rookery.policy` rows for a company dashboard (see below); `roost decisions` is the local, no-setup view of it. Reads `~/.rookery/decisions` by default, or `ROOKERY_HOME` if rookery's hook was configured with it.
 
 ## Context tax: what loads before you type anything
 

@@ -29,8 +29,9 @@ Node 20 or newer.
 | `src/usage/aggregate.ts` | Totals across sessions: skills, subagents, MCP servers, commands, tools, repos |
 | `src/usage/types.ts` | `SessionUsage` (names, counts, dates, tokens only, plus `preload`: the first top-level turn's usage) and name cleaning |
 | `src/verdicts.ts` | `roost verdicts`: reads rookery's JSON report and judges each Claude Code skill, command and subagent against the sessions |
+| `src/decisions.ts` | `roost decisions`: reads rookery's runtime-hook log (`<rookery home>/decisions/*.jsonl`) and groups denies/warnings by rule, agent and repo |
 | `src/context.ts` | `roost context`: groups each session's `preload` by agent and repo, with a per-repo trend and the heaviest sessions |
-| `src/report/*` | Terminal and JSON output for `sources`, `usage`, `verdicts` and `context`; colours (`style.ts`), `~/…` paths and number formatting |
+| `src/report/*` | Terminal and JSON output for `sources`, `usage`, `verdicts`, `decisions` and `context`; colours (`style.ts`), `~/…` paths and number formatting |
 | `scripts/demo-home.mjs` | Writes a made-up "acme" team's logs, in each agent's real layout, for screenshots and trying roost |
 | `src/version.ts` | Version from `package.json` |
 | `test/` | `node:test` suite with synthetic fixtures |

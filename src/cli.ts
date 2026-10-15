@@ -2,7 +2,7 @@
 import { parseArgs } from 'node:util';
 import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import { findSources } from './sources.js';
 import { renderSourcesJson, renderSourcesTerminal } from './report/sources.js';
 import { renderUsageJson, renderUsageTerminal, type UsageView } from './report/usage.js';
@@ -11,6 +11,8 @@ import { aggregate } from './usage/aggregate.js';
 import { AGENTS, type AgentDef } from './usage/agents.js';
 import { renderVerdictsJson, renderVerdictsTerminal } from './report/verdicts.js';
 import { InputError, judge, parseRookery } from './verdicts.js';
+import { aggregateDecisions, readDecisions } from './decisions.js';
+import { renderDecisionsJson, renderDecisionsTerminal } from './report/decisions.js';
 import { aggregateContext } from './context.js';
 import { renderContextJson, renderContextTerminal } from './report/context.js';
 import { runExport } from './export/run.js';
@@ -28,11 +30,13 @@ Usage
                                  company's OpenTelemetry backend (Grafana, Loki, OpenObserve, a Collector)
   roost export --send            Send the finished days not sent yet. Needs ROOST_EXPORT=on and
                                  OTEL_EXPORTER_OTLP_ENDPOINT / OTEL_EXPORTER_OTLP_HEADERS
+  roost decisions                What rookery's runtime hook denied or warned about, by rule, agent and repo
   roost context                  Context tax: tokens loaded before anyone types a real prompt, per session
   roost sources                  Find each agent's session logs on this machine
 
 Options
   --since <30d|YYYY-MM-DD|all>   Time window (default: 30d; for export, the days not sent yet, or 7d)
+                                 (decisions reads ~/.rookery/decisions, not agent session logs)
   --agent <name>                 claude-code, codex, gemini or all (default: all with sessions)
   --rookery <file>               rookery's JSON report for verdicts (or pipe it in; - reads stdin)
   --top <n>                      Rows per section in the terminal report (default: 10)
@@ -107,7 +111,7 @@ async function main(argv: string[]): Promise<number> {
   if (positionals.length === 0) { process.stdout.write(HELP); return 0; }
 
   const [command, ...rest] = positionals;
-  if (!['sources', 'usage', 'verdicts', 'export', 'context'].includes(command)) fail(`unknown command "${command}"`);
+  if (!['sources', 'usage', 'verdicts', 'export', 'decisions', 'context'].includes(command)) fail(`unknown command "${command}"`);
   if (rest.length) fail(`unexpected argument "${rest[0]}"`);
   if (o.format !== 'terminal' && o.format !== 'json' && !(command === 'export' && o.format === 'otlp')) fail(`--format must be terminal or json${command === 'export' ? ' or otlp' : ''}, not "${o.format}"`);
   if (command !== 'export' && (o.send || o.endpoint || o.team)) fail('--send, --endpoint and --team are options of roost export');
@@ -117,6 +121,18 @@ async function main(argv: string[]): Promise<number> {
   if (command === 'sources') {
     const sources = findSources(home);
     process.stdout.write(o.format === 'json' ? renderSourcesJson(sources, home) : renderSourcesTerminal(sources, home, color));
+    return 0;
+  }
+
+  if (command === 'decisions') {
+    if (o.agent !== 'all') fail('--agent is not an option of roost decisions: its own log names agents (claude-code, codex, gemini, cursor, copilot, windsurf)');
+    const top = Number(o.top);
+    if (!Number.isInteger(top) || top < 1) fail(`--top must be a whole number of 1 or more, not "${o.top}"`);
+    const { since, window } = parseSince(o.since ?? '30d');
+    const rookeryHome = process.env.ROOKERY_HOME ?? join(home, '.rookery');
+    const { decisions, skipped, found } = await readDecisions(rookeryHome, since);
+    const view = { report: aggregateDecisions(decisions, skipped), found, window, top, color };
+    process.stdout.write(o.format === 'json' ? renderDecisionsJson(view) : renderDecisionsTerminal(view));
     return 0;
   }
 
