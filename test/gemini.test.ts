@@ -98,11 +98,13 @@ test('gemini: legacy and current sessions, united across a migration copy, with 
   assert.equal(b.agent, 'gemini-cli');
 
   assert.deepEqual(a.tokens, { input: 200, cacheWrite: 0, cacheRead: 1000, output: 70 }, 'input excludes cached; thoughts count as output; counted once despite the copy');
+  assert.deepEqual(a.preload, a.tokens, 'its only message is also its first');
   assert.deepEqual([...a.tools], [['search_file_content', 1]]);
   assert.deepEqual([...a.mcp], [['github/create_issue', 1]]);
   assert.deepEqual([...a.subagents], [['codebase_investigator', 1]]);
 
   assert.deepEqual(b.tokens, { input: 300 + 300, cacheWrite: 0, cacheRead: 600, output: 30 + 15 }, 'the last copy of g1 wins; the subagent adds its tokens');
+  assert.deepEqual(b.preload, { input: 300, cacheWrite: 0, cacheRead: 600, output: 30 }, 'g1 alone: the subagent\'s own first turn never counts as preload');
   assert.deepEqual([...b.mcp], [['gh_tools/list_prs', 1]], 'server from displayName, even with an underscore');
   assert.deepEqual([...b.skills], [['pdf', 1]]);
   assert.deepEqual([...b.subagents], [['reviewer', 1]]);
@@ -119,6 +121,28 @@ test('gemini: all time includes old sessions; no data means no sessions', async 
   assert.equal(all.sessions.length, 3);
   const empty = mkdtempSync(join(tmpdir(), 'roost-gemini-empty-'));
   assert.deepEqual(await readGemini(empty), { sessions: [], skipped: 0 });
+});
+
+test('gemini: preload is the earliest message by timestamp, not by insertion order', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'roost-gemini-'));
+  const dir = join(home, '.gemini', 'tmp', 'solo', 'chats');
+  mkdirSync(dir, { recursive: true });
+  // Written out of chronological order: m2 (later) appears in the file before m1 (earlier).
+  writeFileSync(join(dir, 'session-2026-10-05T10-00-ffff6666.jsonl'), [
+    { sessionId: 'ffff6666', projectHash: '0'.repeat(64), startTime: '2026-10-05T10:00:00Z', lastUpdated: '2026-10-05T10:05:00Z' },
+    { id: 'm2', timestamp: '2026-10-05T10:05:00Z', type: 'gemini', tokens: tokens(5, 0, 5) },
+    { id: 'm1', timestamp: '2026-10-05T10:00:00Z', type: 'gemini', tokens: tokens(900, 600, 20, 10) },
+  ].map((l) => JSON.stringify(l)).join('\n') + '\n');
+  // A subagent transcript that starts even earlier than m1: it must still not win preload.
+  mkdirSync(join(dir, 'ffff6666'), { recursive: true });
+  writeFileSync(join(dir, 'ffff6666', 'sub.jsonl'), [
+    { sessionId: 'sub', projectHash: '0'.repeat(64), startTime: '2026-10-05T09:00:00Z', lastUpdated: '2026-10-05T09:01:00Z', kind: 'subagent' },
+    { id: 's1', timestamp: '2026-10-05T09:00:30Z', type: 'gemini', tokens: tokens(1, 0, 1) },
+  ].map((l) => JSON.stringify(l)).join('\n') + '\n');
+
+  const { sessions } = await readGemini(home);
+  const s = sessions.find((x) => x.id === 'ffff6666')!;
+  assert.deepEqual(s.preload, { input: 300, cacheWrite: 0, cacheRead: 600, output: 30 }, 'm1 (300/600/30), not m2 or the subagent');
 });
 
 test('gemini: a hash folder nobody can map back keeps its sessions, without a repo', async () => {

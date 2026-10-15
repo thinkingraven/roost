@@ -47,7 +47,7 @@ interface Thread {
   mcpCalls: Map<string, { guess: string; session: SessionUsage }>;
   mcpNames: Map<string, string>;
   /** Tokens per session (or per session-day) from token_count events and from token_usage_record lines; a file's records win when it has any. */
-  tokens: Map<SessionUsage, { fromCounts: Tokens; fromRecords: Tokens }>;
+  tokens: Map<SessionUsage, { fromCounts: Tokens; fromRecords: Tokens; firstCounts?: Tokens; firstRecords?: Tokens }>;
   hasRecords: boolean;
 }
 
@@ -111,7 +111,10 @@ export async function readCodex(home: string, since?: Date, opts: ReadOptions = 
         t.hasRecords = true;
         if (id && seenResponses.has(id)) continue;
         if (id) seenResponses.add(id);
-        if (isObj(p.usage)) addUsage(tk.fromRecords, p.usage);
+        if (isObj(p.usage)) {
+          addUsage(tk.fromRecords, p.usage);
+          if (!tk.firstRecords) { tk.firstRecords = noTokens(); addUsage(tk.firstRecords, p.usage); }
+        }
       } else if (entry.type === 'event_msg') {
         if (p.type === 'token_count') {
           const total = totalOf(p);
@@ -120,7 +123,10 @@ export async function readCodex(home: string, since?: Date, opts: ReadOptions = 
           const info = p.info as Obj;
           const last = isObj(info.last_token_usage) ? info.last_token_usage : undefined;
           const reset = isObj(info.total_token_usage) && num(info.total_token_usage.input_tokens) === 0 && num(info.total_token_usage.output_tokens) === 0;
-          if (last && !reset) addUsage(tk.fromCounts, last);
+          if (last && !reset) {
+            addUsage(tk.fromCounts, last);
+            if (!tk.firstCounts) { tk.firstCounts = noTokens(); addUsage(tk.firstCounts, last); }
+          }
         } else if (p.type === 'mcp_tool_call_end' && isObj(p.invocation)) {
           const id = str(p.call_id), server = str(p.invocation.server), tool = str(p.invocation.tool);
           if (id && server && tool) t.mcpNames.set(id, `${server}/${tool}`);
@@ -135,6 +141,9 @@ export async function readCodex(home: string, since?: Date, opts: ReadOptions = 
     for (const [session, tk] of t.tokens) {
       const used = t.hasRecords ? tk.fromRecords : tk.fromCounts;
       for (const k of ['input', 'cacheWrite', 'cacheRead', 'output'] as const) session.tokens[k] += used[k];
+      // The earliest file touching a session sets its preload (files.sort() keeps rollouts in
+      // chronological order, and a fork or subagent thread's own file always starts later).
+      if (!session.preload) session.preload = t.hasRecords ? tk.firstRecords : tk.firstCounts;
     }
   }
 
