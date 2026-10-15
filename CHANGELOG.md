@@ -2,6 +2,12 @@
 
 All notable changes to roost are listed here. This project follows [semantic versioning](https://semver.org).
 
+## 0.4.0 — 2026-10-15
+
+- **`roost decisions`**: a readable report of what rookery's runtime hook (`rookery hook`) denied or warned about — by rule, agent and repo, with one example subject per rule. `roost export` already turns the same log into `rookery.policy` rows for a dashboard; this is the local, no-setup view of it. `--since`, `--top`, `--format json`.
+  - Reads `<rookery home>/decisions/YYYY-MM-DD.jsonl` (`~/.rookery` by default, or `ROOKERY_HOME`, matching `roost export`). Says so plainly when the folder doesn't exist yet, or when the window has nothing logged.
+  - rookery's hook agent and kind names are read as plain strings, not a fixed list, so a future agent or kind still shows up instead of being dropped.
+
 ## 0.3.0 — 2026-10-15
 
 - **`roost export`: daily, counts-only summaries for your dashboards.** Sent as OpenTelemetry logs (OTLP/HTTP JSON) to Grafana Cloud, Loki, OpenObserve or any OpenTelemetry Collector.

@@ -24,6 +24,15 @@ Teams install skills, subagents, rules files and MCP servers in every repo and e
 | 5. Team | Each developer exports a summary (counts and names only); `roost merge` combines them into one team report | Started with `roost export`: daily counts to the company's OpenTelemetry backend, plus a Grafana dashboard (0.3.0); a file-based `roost merge` and pipeline (software factory) runs next |
 | 6. Reports | Terminal, JSON, Markdown and a self-contained HTML page, in rookery's style; a retire/merge PR instead of just a chart | |
 
+## Decisions: rookery's policy log
+
+`rookery hook <agent>` checks every tool call against a repo's `.rookery.yml` while an agent works, and appends each deny or warn to `<rookery home>/decisions/YYYY-MM-DD.jsonl` (`~/.rookery` by default, or `ROOKERY_HOME`). Two things read it:
+
+- `roost export` turns it into `rookery.policy` rows for a company's dashboards (0.3.0).
+- `roost decisions` (0.4.0) is the local, no-setup view: denies and warnings by rule, agent and repo, with no OTLP config needed.
+
+Both share nothing but the log format: `roost export`'s reader (`src/export/rows.ts`) stays lenient and OTLP-row-shaped on purpose; `roost decisions` (`src/decisions.ts`) is its own small reader, built for a human report.
+
 ## Log sources
 
 All local files; roost never asks an agent or a service for anything.
