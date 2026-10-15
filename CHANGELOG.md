@@ -2,11 +2,14 @@
 
 All notable changes to roost are listed here. This project follows [semantic versioning](https://semver.org).
 
-## 0.4.0 — 2026-10-15
+## 0.4.0 — 2026-10-16
 
 - **`roost decisions`**: a readable report of what rookery's runtime hook (`rookery hook`) denied or warned about — by rule, agent and repo, with one example subject per rule. `roost export` already turns the same log into `rookery.policy` rows for a dashboard; this is the local, no-setup view of it. `--since`, `--top`, `--format json`.
   - Reads `<rookery home>/decisions/YYYY-MM-DD.jsonl` (`~/.rookery` by default, or `ROOKERY_HOME`, matching `roost export`). Says so plainly when the folder doesn't exist yet, or when the window has nothing logged.
   - rookery's hook agent and kind names are read as plain strings, not a fixed list, so a future agent or kind still shows up instead of being dropped.
+- **`roost context`: context tax.** Each session now carries `preload`: the usage of its first top-level turn (never a subagent's) — the system prompt, instructions, skill descriptions and MCP tool definitions, all sent before anyone types a real prompt. `roost context` reports the average, a trend per repo (growing, steady or shrinking, comparing its earliest and latest measured sessions), and the heaviest sessions overall. `--since`, `--top`, `--format json`.
+  - Measured directly from each agent's own usage field — Claude Code's first `cache_creation_input_tokens`/`cache_read_input_tokens`, Codex's first `token_count`/`token_usage_record` (whichever the session's totals already prefer), Gemini CLI's first `tokens` object by timestamp (not file order) — never a guess.
+  - Does **not** attribute the cost to a specific skill, rules file or MCP server: rookery's own per-artifact token count is the wrong unit for that today (a skill's whole file, when only its description preloads; an MCP server's config, not its tool-definition schemas). The report says so.
 
 ## 0.3.0 — 2026-10-15
 

@@ -39,6 +39,9 @@ export async function readClaudeCode(home: string, since?: Date, opts: ReadOptio
   const seenMessages = new Set<string>();
   const seenToolCalls = new Set<string>();
   const seenEntries = new Set<string>();
+  // Directory order isn't chronological (a subagent's file can be read before its parent's), so the
+  // earliest preload candidate is tracked by timestamp, not by processing order.
+  const preloadWhen = new Map<SessionUsage, Date>();
   let skipped = 0;
 
   for (const file of files) {
@@ -80,6 +83,19 @@ export async function readClaudeCode(home: string, since?: Date, opts: ReadOptio
             session.tokens.cacheWrite += num(usage.cache_creation_input_tokens);
             session.tokens.cacheRead += num(usage.cache_read_input_tokens);
             session.tokens.output += num(usage.output_tokens);
+            // Preload is the top-level conversation's first turn, not a subagent's own.
+            if (entry.isSidechain !== true) {
+              const seenAt = preloadWhen.get(session);
+              if (!seenAt || when < seenAt) {
+                preloadWhen.set(session, when);
+                session.preload = {
+                  input: num(usage.input_tokens),
+                  cacheWrite: num(usage.cache_creation_input_tokens),
+                  cacheRead: num(usage.cache_read_input_tokens),
+                  output: num(usage.output_tokens),
+                };
+              }
+            }
           }
         }
         if (Array.isArray(message.content)) {

@@ -23,6 +23,12 @@ export interface SessionUsage {
   first?: Date;
   last?: Date;
   tokens: Tokens;
+  /**
+   * The size of the very first turn of the top-level conversation (not a subagent's): system
+   * prompt, instructions, skill descriptions and MCP tool definitions, all sent before anyone
+   * types a real prompt. "Context tax". Undefined when no turn with usable token usage was found.
+   */
+  preload?: Tokens;
   /** Skill name → runs */
   skills: Map<string, number>;
   /** Subagent type → runs */

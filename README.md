@@ -29,7 +29,7 @@ Every team ends up installing a *code-review* skill, a GitHub MCP server and a d
 
 **roost** answers that from the session logs your agents already keep on your machine. It reads a few months of logs in about a second, runs locally, never uploads anything, and keeps only names, counts, dates and token numbers: never your prompts.
 
-> **Early days.** `roost usage` and `roost verdicts` read Claude Code, Codex and Gemini CLI. Context cost and team summaries are next: see the [roadmap](#roadmap).
+> **Early days.** `roost usage`, `roost verdicts` and `roost context` read Claude Code, Codex and Gemini CLI. Team summaries are next: see the [roadmap](#roadmap).
 
 ## Quick start
 
@@ -37,6 +37,7 @@ Every team ends up installing a *code-review* skill, a GitHub MCP server and a d
 npx @thinkingraven/roost usage                     # what your agents ran, the last 30 days
 npx @thinkingraven/roost usage --agent codex       # one agent: claude-code, codex or gemini
 npx @thinkingraven/roost usage --since all         # all time
+npx @thinkingraven/roost context                   # context tax: tokens loaded before the first prompt
 npx @thinkingraven/roost sources                   # where each agent keeps its logs
 npx @thinkingraven/roost decisions                 # what rookery's runtime hook blocked or warned about
 
@@ -126,6 +127,31 @@ Nothing leaves this machine. rookery already redacts what it logs: first tokens 
 ```
 
 `roost export` already turns this same log into `rookery.policy` rows for a company dashboard (see below); `roost decisions` is the local, no-setup view of it. Reads `~/.rookery/decisions` by default, or `ROOKERY_HOME` if rookery's hook was configured with it.
+
+## Context tax: what loads before you type anything
+
+Every session pays for its system prompt, instructions, skill descriptions and MCP tool definitions before a single real prompt goes in. `roost context` measures it, from each agent's own usage field on the session's first turn:
+
+```bash
+npx @thinkingraven/roost context
+```
+
+```text
+roost. v0.4.0  ·  context  ·  tokens loaded before the first prompt  ·  last 30 days  ·  41 sessions
+
+AVERAGE PRELOAD  24.6k tokens
+  cache reads 22k  ·  cache writes 2.6k  ·  uncached input 25  ·  first reply 652
+
+BY REPO
+  payments-api  70.1k avg (12 sessions)  ·  growing: 12.0k → 92.2k since 2026-09-20
+  web-app       30.4k avg (8 sessions)   ·  steady: 29.1k → 31.6k since 2026-09-13
+
+HEAVIEST SESSIONS
+  payments-api  92.2k tokens  2026-10-10
+  ...
+```
+
+A repo whose preload keeps growing usually means a skill, rules file or MCP server got bigger, or a new one got added everywhere. What it doesn't do yet is say *which one*: rookery's own per-artifact token size is the wrong unit for that (a skill's whole file, when only its description preloads every session; an MCP server's config, not the tool-definition schemas that actually cost tokens) — see the [roadmap](#roadmap).
 
 ## Send it to your dashboards
 
@@ -227,7 +253,7 @@ It has to parse each log line to find the tool calls in it, but it keeps nothing
 <details>
 <summary><b>Why are cache reads so large?</b></summary>
 
-Agents send the whole conversation back to the model on every turn, and most of it is read from the prompt cache, which is far cheaper than fresh input. Large cache-read totals are normal. The context-cost step on the roadmap will show how much of every session is instructions, skill descriptions and MCP tool definitions.
+Agents send the whole conversation back to the model on every turn, and most of it is read from the prompt cache, which is far cheaper than fresh input. Large cache-read totals are normal. `roost context` shows how much of a session's *first* turn — before any real work — was instructions, skill descriptions and MCP tool definitions.
 </details>
 
 <details>
@@ -238,7 +264,7 @@ Today roost reads one machine. Team summaries are on the roadmap: each person ex
 
 ## Roadmap
 
-- **Context cost**: tokens loaded before the first prompt, and what each instruction file, skill description and MCP server costs per session
+- **Context tax by artifact**: `roost context` measures the total; attributing it to a specific skill, rules file or MCP server needs a rookery field sized for preload (a skill's description alone, an MCP server's tool-definition schemas), not its current whole-file estimate
 - **Verdicts, next steps**: the tokens each change saves, and a pull request that retires or merges for you
 - **Team summaries**: counts-only exports merged into one team report
 - **HTML and Markdown reports**, in rookery's style

@@ -19,7 +19,7 @@ Teams install skills, subagents, rules files and MCP servers in every repo and e
 |---|---|---|
 | 1. Sources | Find each agent's session logs on the machine | Done (`roost sources`) |
 | 2. Usage | Count skills, slash commands, subagents and MCP tools actually invoked, per repo and per agent, with token use | Done for Claude Code, Codex and Gemini CLI (`roost usage`) |
-| 3. Context tax | Tokens loaded before the first prompt: instruction files, rules, skill descriptions, MCP tool definitions; what each one costs per session | |
+| 3. Context tax | Tokens loaded before the first prompt: instruction files, rules, skill descriptions, MCP tool definitions; what each one costs per session | The total is measured, for Claude Code, Codex and Gemini CLI (`roost context`, 0.4.0); per-artifact attribution is not — see below |
 | 4. Verdicts | Join usage with rookery's JSON inventory: **keep**, **improve**, **merge** (duplicate clusters, with the copy that wins) or **retire** (installed, never used), with the tokens each change saves | Done for Claude Code, Codex and Gemini CLI (`roost verdicts`, rookery 0.7.2+ for exact repo matching); token savings and the retire/merge PR next |
 | 5. Team | Each developer exports a summary (counts and names only); `roost merge` combines them into one team report | Started with `roost export`: daily counts to the company's OpenTelemetry backend, plus a Grafana dashboard (0.3.0); a file-based `roost merge` and pipeline (software factory) runs next |
 | 6. Reports | Terminal, JSON, Markdown and a self-contained HTML page, in rookery's style; a retire/merge PR instead of just a chart | |
@@ -32,6 +32,22 @@ Teams install skills, subagents, rules files and MCP servers in every repo and e
 - `roost decisions` (0.4.0) is the local, no-setup view: denies and warnings by rule, agent and repo, with no OTLP config needed.
 
 Both share nothing but the log format: `roost export`'s reader (`src/export/rows.ts`) stays lenient and OTLP-row-shaped on purpose; `roost decisions` (`src/decisions.ts`) is its own small reader, built for a human report.
+
+## Context tax: what's measured, what isn't
+
+`roost context` (0.4.0) measures "preload" per session — the usage of its first top-level turn, never a subagent's own — directly from each agent's own usage field:
+
+- **Claude Code:** the first assistant message's `cache_creation_input_tokens` + `cache_read_input_tokens` + `input_tokens`.
+- **Codex:** the first `token_count` event's `last_token_usage`, or the first `token_usage_record`'s `usage` when the thread has any (the same source its totals already prefer).
+- **Gemini CLI:** the first `type: "gemini"` message's `tokens` object, by timestamp (messages aren't stored in chronological order).
+
+This is a measurement, not an estimate: it's exactly what that turn's prompt cost, in whichever agent sent it.
+
+**What it can't do yet:** attribute that cost to a specific skill, rules file or MCP server. rookery's `tokens` field (`Math.ceil(text.length / 4)` on the artifact's raw file) is the wrong unit for both:
+- a skill's token count is its *whole file*, but only its frontmatter description preloads into every session — the body loads on invocation. rookery's number overstates a skill's preload cost, often by 10–50×.
+- an MCP server's token count is its *config entry* (command/args/env), not the tool-definition schemas the server sends at connect time — the thing that actually costs tokens every session. rookery's number understates it, likely by more.
+
+Fixing this needs a new, more precise rookery field (description-only size for skills; a way to size an MCP server's actual tool schemas), not a join against what rookery already reports. Until then, `roost context` reports the total and a per-repo trend, and says plainly that it doesn't break it down further.
 
 ## Log sources
 

@@ -99,13 +99,20 @@ test('codex: tool calls, skills, MCP, subagents and tokens, with forks and subag
   assert.deepEqual([...t1.commands], [['/review', 1]]);
   // last_token_usage summed when the total changes: (1000/800/50) + (600/400/30) + (300/100/20) + subagent (200/0/10); the repeat, null and reset add nothing.
   assert.deepEqual(t1.tokens, { input: 200 + 200 + 200 + 200, cacheWrite: 0, cacheRead: 800 + 400 + 100, output: 50 + 30 + 20 + 10 });
+  // Preload is t1's own first token_count (1000/800/50), not the repeat, the reset, or the subagent
+  // thread's (200/0/10) from a later file — even though both update the same session.
+  assert.deepEqual(t1.preload, { input: 200, cacheWrite: 0, cacheRead: 800, output: 50 });
 
   const t3 = sessions.find((s) => s.id === 't3')!;
   assert.deepEqual(Object.fromEntries(t3.tools), { update_plan: 1 }, 'the copied parent lines are skipped');
   assert.deepEqual(t3.tokens, { input: 100, cacheWrite: 0, cacheRead: 100, output: 20 });
+  assert.deepEqual(t3.preload, t3.tokens, 'its only counted event is also its first');
 
   const t4 = sessions.find((s) => s.id === 't4')!;
   assert.deepEqual(t4.tokens, { input: 50 + 40, cacheWrite: 30, cacheRead: 50, output: 15 }, 'records win; each response once');
+  // Preload also prefers records: the token_count event (999/0/999) fired first in the file, but
+  // t4 has token_usage_record lines, so the first *record* (100/50/10) is what counts.
+  assert.deepEqual(t4.preload, { input: 50, cacheWrite: 0, cacheRead: 50, output: 10 });
   assert.equal(skipped, 1);
   assert.ok(!JSON.stringify(sessions, (_k, v) => (v instanceof Map ? [...v] : v)).includes('SECRET'), 'no text, arguments, paths or URLs from the logs');
 });
