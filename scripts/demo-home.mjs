@@ -4,6 +4,7 @@
 //
 //   node scripts/demo-home.mjs /tmp/acme
 //   node dist/src/cli.js usage --home /tmp/acme --since all
+//   node scripts/demo-home.mjs /tmp/acme-2 7        (a second teammate, from another seed)
 //
 // Everything is made up and deterministic (seeded), dated 12 September to 10 October 2026.
 import { mkdirSync, utimesSync, writeFileSync } from 'node:fs';
@@ -16,7 +17,7 @@ if (!dir) {
 }
 
 // mulberry32: 32-bit integer maths only, so the sequence never loses precision
-let seed = 20261011;
+let seed = Number(process.argv[3] ?? 20261011);   // another seed makes another made-up teammate
 const rand = () => {
   seed = (seed + 0x6d2b79f5) | 0;
   let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);

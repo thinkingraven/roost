@@ -2,7 +2,7 @@ import type { AgentId } from '../sources.js';
 import { BUILT_IN_COMMANDS as CLAUDE_BUILT_IN_COMMANDS, readClaudeCode } from './claude-code.js';
 import { CODEX_BUILT_IN_COMMANDS, CODEX_BUILT_IN_SUBAGENTS, readCodex } from './codex.js';
 import { GEMINI_BUILT_IN_COMMANDS, GEMINI_BUILT_IN_SUBAGENTS, readGemini } from './gemini.js';
-import type { ReadResult } from './types.js';
+import type { ReadOptions, ReadResult } from './types.js';
 
 /** What roost knows about each agent: how to read its logs, and what's built in rather than a team's own. */
 export interface AgentDef {
@@ -10,7 +10,7 @@ export interface AgentDef {
   name: string;
   /** The value of `--agent` that picks this one. */
   flag: string;
-  read: (home: string, since?: Date) => Promise<ReadResult>;
+  read: (home: string, since?: Date, opts?: ReadOptions) => Promise<ReadResult>;
   builtInCommands: ReadonlySet<string>;
   /** Built-in subagent types, compared in lower case. */
   builtInSubagents: ReadonlySet<string>;

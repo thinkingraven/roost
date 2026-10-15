@@ -1,0 +1,1326 @@
+{
+  "__inputs": [],
+  "title": "roost: how your AI agents are used",
+  "uid": "roost-agents",
+  "description": "Daily, counts-only summaries from `roost export` (Claude Code, Codex, Gemini CLI) and rookery's policy hook. https://github.com/thinkingraven/roost",
+  "tags": [
+    "roost",
+    "ai-agents"
+  ],
+  "editable": true,
+  "schemaVersion": 39,
+  "version": 1,
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "refresh": "",
+  "timezone": "utc",
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "label": "Loki",
+        "type": "datasource",
+        "query": "loki",
+        "current": {},
+        "hide": 0
+      },
+      {
+        "name": "team",
+        "label": "Team (regex)",
+        "type": "textbox",
+        "query": ".*",
+        "current": {
+          "text": ".*",
+          "value": ".*"
+        },
+        "hide": 0
+      },
+      {
+        "name": "agent",
+        "label": "Agent",
+        "type": "custom",
+        "query": "claude-code,codex,gemini-cli",
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": false,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "panels": [
+    {
+      "type": "row",
+      "title": "Adoption",
+      "id": 1,
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "title": "Active people",
+      "description": "Distinct hashed people with at least one session.",
+      "id": 2,
+      "datasource": {
+        "type": "loki",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "queryType": "instant",
+          "expr": "count(sum by (roost_person) (count_over_time({service_name=\"roost\"} | event_name=\"roost.activity\" | roost_team=~\"$team\" | roost_agent=~\"$agent\" [$__range])))",
+          "legendFormat": ""
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Sessions",
+      "description": "Agent sessions, counted once per day they were active.",
+      "id": 3,
+      "datasource": {
+        "type": "loki",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "queryType": "instant",
+          "expr": "sum (sum_over_time({service_name=\"roost\"} | event_name=\"roost.activity\" | roost_team=~\"$team\" | roost_agent=~\"$agent\" | unwrap roost_sessions [$__range]))",
+          "legendFormat": ""
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Repos",
+      "description": "Repos with agent sessions.",
+      "id": 4,
+      "datasource": {
+        "type": "loki",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "queryType": "instant",
+          "expr": "count(sum by (roost_repo) (count_over_time({service_name=\"roost\"} | event_name=\"roost.activity\" | roost_team=~\"$team\" | roost_agent=~\"$agent\" [$__range])))",
+          "legendFormat": ""
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Skill runs",
+      "description": "Skills the agents ran.",
+      "id": 5,
+      "datasource": {
+        "type": "loki",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "queryType": "instant",
+          "expr": "sum (sum_over_time({service_name=\"roost\"} | event_name=\"roost.activity\" | roost_team=~\"$team\" | roost_agent=~\"$agent\" | unwrap roost_skill_runs [$__range]))",
+          "legendFormat": ""
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Active people per day, by agent",
+      "description": "",
+      "id": 6,
+      "datasource": {
+        "type": "loki",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "queryType": "range",
+          "expr": "count by (roost_agent) (sum by (roost_agent, roost_person) (count_over_time({service_name=\"roost\"} | event_name=\"roost.activity\" | roost_team=~\"$team\" | roost_agent=~\"$agent\" [1d])))",
+          "legendFormat": "{{roost_agent}}",
+          "step": "1d"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 70,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "barAlignment": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "type": "bargauge",
+      "title": "Sessions by team",
+      "description": "Set ROOST_TEAM on each machine to fill this in.",
+      "id": 7,
+      "datasource": {
+        "type": "loki",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "queryType": "instant",
+          "expr": "sum by (roost_team) (sum_over_time({service_name=\"roost\"} | event_name=\"roost.activity\" | roost_team=~\"$team\" | roost_agent=~\"$agent\" | unwrap roost_sessions [$__range]))",
+          "legendFormat": "{{roost_team}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#F2A93B"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#F2A93B",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "basic",
+        "showUnfilled": false,
+        "valueMode": "color",
+        "namePlacement": "left",
+        "sizing": "manual",
+        "minVizHeight": 16,
+        "maxVizHeight": 22,
+        "text": {
+          "titleSize": 12,
+          "valueSize": 13
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^Value/",
+          "values": true
+        }
+      },
+      "transformations": [
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Value #A",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Cost",
+      "id": 8,
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 13
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Output tokens per day, by agent",
+      "description": "",
+      "id": 9,
+      "datasource": {
+        "type": "loki",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 14
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "queryType": "range",
+          "expr": "sum by (roost_agent) (sum_over_time({service_name=\"roost\"} | event_name=\"roost.activity\" | roost_team=~\"$team\" | roost_agent=~\"$agent\" | unwrap roost_tokens_output [1d]))",
+          "legendFormat": "{{roost_agent}}",
+          "step": "1d"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 70,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "barAlignment": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "type": "timeseries",
+      "title": "Input tokens per day",
+      "description": "Uncached input, cache reads and cache writes.",
+      "id": 10,
+      "datasource": {
+        "type": "loki",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 14
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "queryType": "range",
+          "expr": "sum (sum_over_time({service_name=\"roost\"} | event_name=\"roost.activity\" | roost_team=~\"$team\" | roost_agent=~\"$agent\" | unwrap roost_tokens_input [1d]))",
+          "legendFormat": "uncached input",
+          "step": "1d"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "loki",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "queryType": "range",
+          "expr": "sum (sum_over_time({service_name=\"roost\"} | event_name=\"roost.activity\" | roost_team=~\"$team\" | roost_agent=~\"$agent\" | unwrap roost_tokens_cache_read [1d]))",
+          "legendFormat": "cache read",
+          "step": "1d"
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "loki",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "queryType": "range",
+          "expr": "sum (sum_over_time({service_name=\"roost\"} | event_name=\"roost.activity\" | roost_team=~\"$team\" | roost_agent=~\"$agent\" | unwrap roost_tokens_cache_write [1d]))",
+          "legendFormat": "cache write",
+          "step": "1d"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 70,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "barAlignment": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "type": "bargauge",
+      "title": "Output tokens by repo",
+      "description": "Top 15 repos.",
+      "id": 11,
+      "datasource": {
+        "type": "loki",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 22
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "queryType": "instant",
+          "expr": "topk(15, sum by (roost_repo) (sum_over_time({service_name=\"roost\"} | event_name=\"roost.activity\" | roost_team=~\"$team\" | roost_agent=~\"$agent\" | unwrap roost_tokens_output [$__range])))",
+          "legendFormat": "{{roost_repo}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#F2A93B"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#F2A93B",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "basic",
+        "showUnfilled": false,
+        "valueMode": "color",
+        "namePlacement": "left",
+        "sizing": "manual",
+        "minVizHeight": 16,
+        "maxVizHeight": 22,
+        "text": {
+          "titleSize": 12,
+          "valueSize": 13
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^Value/",
+          "values": true
+        }
+      },
+      "transformations": [
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Value #A",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "type": "bargauge",
+      "title": "Output tokens by team",
+      "description": "",
+      "id": 12,
+      "datasource": {
+        "type": "loki",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 22
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "queryType": "instant",
+          "expr": "sum by (roost_team) (sum_over_time({service_name=\"roost\"} | event_name=\"roost.activity\" | roost_team=~\"$team\" | roost_agent=~\"$agent\" | unwrap roost_tokens_output [$__range]))",
+          "legendFormat": "{{roost_team}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#F2A93B"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#F2A93B",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "basic",
+        "showUnfilled": false,
+        "valueMode": "color",
+        "namePlacement": "left",
+        "sizing": "manual",
+        "minVizHeight": 16,
+        "maxVizHeight": 22,
+        "text": {
+          "titleSize": 12,
+          "valueSize": 13
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^Value/",
+          "values": true
+        }
+      },
+      "transformations": [
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Value #A",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Skills that work",
+      "id": 13,
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 31
+      },
+      "panels": []
+    },
+    {
+      "type": "bargauge",
+      "title": "Most-run skills",
+      "description": "Top 15 skills by runs, across agents.",
+      "id": 14,
+      "datasource": {
+        "type": "loki",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 8,
+        "x": 0,
+        "y": 32
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "queryType": "instant",
+          "expr": "topk(15, sum by (roost_skill) (sum_over_time({service_name=\"roost\"} | event_name=\"roost.skill_used\" | roost_team=~\"$team\" | roost_agent=~\"$agent\" | unwrap roost_runs [$__range])))",
+          "legendFormat": "{{roost_skill}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#F2A93B"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#F2A93B",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "basic",
+        "showUnfilled": false,
+        "valueMode": "color",
+        "namePlacement": "left",
+        "sizing": "manual",
+        "minVizHeight": 16,
+        "maxVizHeight": 22,
+        "text": {
+          "titleSize": 12,
+          "valueSize": 13
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^Value/",
+          "values": true
+        }
+      },
+      "transformations": [
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Value #A",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "type": "bargauge",
+      "title": "MCP servers by calls",
+      "description": "A server that loads into every session but is rarely called costs tokens for nothing.",
+      "id": 15,
+      "datasource": {
+        "type": "loki",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 8,
+        "x": 8,
+        "y": 32
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "queryType": "instant",
+          "expr": "topk(15, sum by (roost_mcp_server) (sum_over_time({service_name=\"roost\"} | event_name=\"roost.mcp_used\" | roost_team=~\"$team\" | roost_agent=~\"$agent\" | unwrap roost_calls [$__range])))",
+          "legendFormat": "{{roost_mcp_server}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#F2A93B"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#F2A93B",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "basic",
+        "showUnfilled": false,
+        "valueMode": "color",
+        "namePlacement": "left",
+        "sizing": "manual",
+        "minVizHeight": 16,
+        "maxVizHeight": 22,
+        "text": {
+          "titleSize": 12,
+          "valueSize": 13
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^Value/",
+          "values": true
+        }
+      },
+      "transformations": [
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Value #A",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "type": "bargauge",
+      "title": "Your own slash commands",
+      "description": "The team's commands; each agent's built-ins are left out.",
+      "id": 16,
+      "datasource": {
+        "type": "loki",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 8,
+        "x": 16,
+        "y": 32
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "queryType": "instant",
+          "expr": "topk(15, sum by (roost_command) (sum_over_time({service_name=\"roost\"} | event_name=\"roost.command_used\" | roost_team=~\"$team\" | roost_agent=~\"$agent\" | roost_builtin=\"false\" | unwrap roost_uses [$__range])))",
+          "legendFormat": "{{roost_command}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#F2A93B"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#F2A93B",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "basic",
+        "showUnfilled": false,
+        "valueMode": "color",
+        "namePlacement": "left",
+        "sizing": "manual",
+        "minVizHeight": 16,
+        "maxVizHeight": 22,
+        "text": {
+          "titleSize": 12,
+          "valueSize": 13
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^Value/",
+          "values": true
+        }
+      },
+      "transformations": [
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Value #A",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Skills, team-wide",
+      "id": 17,
+      "datasource": {
+        "type": "loki",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 6,
+        "x": 0,
+        "y": 42
+      },
+      "description": "From `roost export --rookery`, latest day: everyone's usage added up per skill and repo.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "queryType": "instant",
+          "expr": "count(sum by (roost_skill, roost_repo) (sum_over_time({service_name=\"roost\"} | event_name=\"roost.verdict\" | roost_team=~\"$team\" | roost_agent=~\".*$agent.*\" | unwrap roost_uses [1d])) > 0)"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "loki",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "queryType": "instant",
+          "expr": "count((sum by (roost_skill, roost_repo) (sum_over_time({service_name=\"roost\"} | event_name=\"roost.verdict\" | roost_team=~\"$team\" | roost_agent=~\".*$agent.*\" | unwrap roost_uses [1d])) > 0) and (max by (roost_skill, roost_repo) (max_over_time({service_name=\"roost\"} | event_name=\"roost.verdict\" | roost_team=~\"$team\" | roost_agent=~\".*$agent.*\" | unwrap roost_issues [1d])) > 0))"
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "loki",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "queryType": "instant",
+          "expr": "count((sum by (roost_skill, roost_repo) (sum_over_time({service_name=\"roost\"} | event_name=\"roost.verdict\" | roost_team=~\"$team\" | roost_agent=~\".*$agent.*\" | unwrap roost_uses [1d])) == 0) and (sum by (roost_skill, roost_repo) (sum_over_time({service_name=\"roost\"} | event_name=\"roost.verdict\" | roost_team=~\"$team\" | roost_agent=~\".*$agent.*\" | unwrap roost_scope_sessions [1d])) > 0))"
+        },
+        {
+          "refId": "D",
+          "datasource": {
+            "type": "loki",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "queryType": "instant",
+          "expr": "count(sum by (roost_skill, roost_repo) (count_over_time({service_name=\"roost\"} | event_name=\"roost.verdict\" | roost_team=~\"$team\" | roost_agent=~\".*$agent.*\" | roost_verdict=\"merge\" [1d])))"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "0"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value #A"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Used"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value #B"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Fix first"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value #C"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Retire"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value #D"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Duplicates"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "orientation": "horizontal",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "type": "table",
+      "title": "Retire: nobody used them",
+      "description": "Available in sessions, never run by anyone in the window.",
+      "id": 18,
+      "datasource": {
+        "type": "loki",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 9,
+        "x": 6,
+        "y": 42
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "queryType": "instant",
+          "expr": "(sum by (roost_skill, roost_repo) (sum_over_time({service_name=\"roost\"} | event_name=\"roost.verdict\" | roost_team=~\"$team\" | roost_agent=~\".*$agent.*\" | unwrap roost_uses [1d])) == 0) and (sum by (roost_skill, roost_repo) (sum_over_time({service_name=\"roost\"} | event_name=\"roost.verdict\" | roost_team=~\"$team\" | roost_agent=~\".*$agent.*\" | unwrap roost_scope_sessions [1d])) > 0)",
+          "legendFormat": ""
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Value": true,
+              "Value #A": true
+            },
+            "indexByName": {
+              "roost_skill": 0,
+              "roost_repo": 1
+            },
+            "renameByName": {
+              "roost_skill": "Skill",
+              "roost_repo": "Repo"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "title": "Fix first: used, with issues",
+      "description": "Skills people rely on that rookery found problems in (quality or serious security findings).",
+      "id": 19,
+      "datasource": {
+        "type": "loki",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 9,
+        "x": 15,
+        "y": 42
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "queryType": "instant",
+          "expr": "(sum by (roost_skill, roost_repo) (sum_over_time({service_name=\"roost\"} | event_name=\"roost.verdict\" | roost_team=~\"$team\" | roost_agent=~\".*$agent.*\" | unwrap roost_uses [1d])) > 0) and (max by (roost_skill, roost_repo) (max_over_time({service_name=\"roost\"} | event_name=\"roost.verdict\" | roost_team=~\"$team\" | roost_agent=~\".*$agent.*\" | unwrap roost_issues [1d])) > 0)",
+          "legendFormat": ""
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Uses",
+            "desc": true
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "roost_skill": 0,
+              "roost_repo": 1,
+              "Value #A": 2
+            },
+            "renameByName": {
+              "roost_skill": "Skill",
+              "roost_repo": "Repo",
+              "Value #A": "Uses",
+              "Value": "Uses"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Safety",
+      "id": 20,
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 60
+      },
+      "panels": []
+    },
+    {
+      "type": "bargauge",
+      "title": "Blocked, by policy setting",
+      "description": "Calls rookery's hook blocked, by the .rookery.yml setting that blocked them.",
+      "id": 21,
+      "datasource": {
+        "type": "loki",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 61
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "queryType": "instant",
+          "expr": "sum by (roost_setting) (sum_over_time({service_name=\"roost\"} | event_name=\"rookery.policy\" | roost_team=~\"$team\" | roost_agent=~\"$agent\" | unwrap roost_blocked [$__range])) > 0",
+          "legendFormat": "{{roost_setting}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#F2A93B"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#F2A93B",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "basic",
+        "showUnfilled": false,
+        "valueMode": "color",
+        "namePlacement": "left",
+        "sizing": "manual",
+        "minVizHeight": 16,
+        "maxVizHeight": 22,
+        "text": {
+          "titleSize": 12,
+          "valueSize": 13
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^Value/",
+          "values": true
+        }
+      },
+      "transformations": [
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Value #A",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Blocks and warnings per day",
+      "description": "",
+      "id": 22,
+      "datasource": {
+        "type": "loki",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 61
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "queryType": "range",
+          "expr": "sum (sum_over_time({service_name=\"roost\"} | event_name=\"rookery.policy\" | roost_team=~\"$team\" | roost_agent=~\"$agent\" | unwrap roost_blocked [1d]))",
+          "legendFormat": "blocked",
+          "step": "1d"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "loki",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "queryType": "range",
+          "expr": "sum (sum_over_time({service_name=\"roost\"} | event_name=\"rookery.policy\" | roost_team=~\"$team\" | roost_agent=~\"$agent\" | unwrap roost_warned [1d]))",
+          "legendFormat": "warned",
+          "step": "1d"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 70,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "barAlignment": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {}
+    }
+  ]
+}

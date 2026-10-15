@@ -2,7 +2,7 @@ import { createReadStream, existsSync, statSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { basename, dirname, join } from 'node:path';
 import { walkFiles } from '../sources.js';
-import { bump, newSession, type ReadResult, type SessionUsage } from './types.js';
+import { bump, sessionTable, type ReadOptions, type ReadResult, type SessionUsage } from './types.js';
 
 // ~/.claude/projects/<project>/<session>.jsonl, plus <session>/subagents/agent-<id>.jsonl (same sessionId)
 const MAX_DEPTH = 4;
@@ -28,13 +28,13 @@ const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) && v > 
  * Takes tool names, skill names, subagent types, MCP server/tool names, slash-command names,
  * working folders, timestamps and token counts. Message text is parsed but never kept.
  */
-export async function readClaudeCode(home: string, since?: Date): Promise<ReadResult> {
+export async function readClaudeCode(home: string, since?: Date, opts: ReadOptions = {}): Promise<ReadResult> {
   const files: string[] = [];
   walkFiles(join(home, '.claude', 'projects'), MAX_DEPTH, (file) => {
     if (file.endsWith('.jsonl')) files.push(file);
   });
 
-  const sessions = new Map<string, SessionUsage>();
+  const sessions = sessionTable('claude-code', opts.byDay);
   // A response is logged once per content block, each copy carrying the same usage: count it once.
   const seenMessages = new Set<string>();
   const seenToolCalls = new Set<string>();
@@ -56,6 +56,7 @@ export async function readClaudeCode(home: string, since?: Date): Promise<ReadRe
       const message = entry.message;
       if (Number.isNaN(when.getTime()) || !isObj(message)) { skipped++; continue; }
       if (since && when < since) continue;
+      if (opts.until && when >= opts.until) continue;
       const uuid = str(entry.uuid);
       if (uuid) {
         if (seenEntries.has(uuid)) continue;
@@ -63,8 +64,7 @@ export async function readClaudeCode(home: string, since?: Date): Promise<ReadRe
       }
 
       const id = str(entry.sessionId) ?? fallbackId;
-      let session = sessions.get(id);
-      if (!session) sessions.set(id, (session = newSession('claude-code', id)));
+      const session = sessions.get(id, when);
       if (!session.first || when < session.first) session.first = when;
       if (!session.last || when > session.last) session.last = when;
       session.cwd ??= str(entry.cwd);
@@ -95,7 +95,7 @@ export async function readClaudeCode(home: string, since?: Date): Promise<ReadRe
     }
   }
 
-  const all = [...sessions.values()];
+  const all = [...sessions.map.values()];
   for (const s of all) s.repo = resolveRepo(s.cwd);
   return { sessions: all, skipped };
 }
