@@ -2,6 +2,14 @@
 
 All notable changes to roost are listed here. This project follows [semantic versioning](https://semver.org).
 
+## 0.7.0 — 2026-10-16
+
+- **`roost merge <file...>`: team summaries with no server at all.** Combines several people's `roost export --format json` files into one team report — no OpenTelemetry backend, no Grafana, just files shared however your team already shares files.
+  - Sums `roost export`'s own counts across people: sessions and tokens by agent, skills/subagents/commands/MCP servers team-wide (with how many people used each), and `rookery.policy` denials and warnings by rule.
+  - When any file exported with `--rookery`, team-wide verdicts too: `uses` and `scope_sessions` summed across the team, the verdict recomputed from the totals (a quality finding's count is taken once, not added per person, since it's the same static rookery finding for everyone).
+  - Needs at least 2 files. Same-named items in different repos are never conflated — `ROOST_REPO` keeps the same anonymity tradeoff it already has in `roost export`.
+  - `--format json` gives the same report as data; `--top` controls how many rows each section shows.
+
 ## 0.6.0 — 2026-10-16
 
 - **`roost verdicts` reports the tokens each retire or merge verdict would save**, via rookery 0.8.0's `preloadTokens`: what that skill, subagent or rules file costs every session it's installed in, not just when it runs.

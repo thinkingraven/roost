@@ -29,7 +29,7 @@ Every team ends up installing a *code-review* skill, a GitHub MCP server and a d
 
 **roost** answers that from the session logs your agents already keep on your machine. It reads a few months of logs in about a second, runs locally, never uploads anything, and keeps only names, counts, dates and token numbers: never your prompts.
 
-> **Early days.** `roost usage`, `roost verdicts` and `roost context` read Claude Code, Codex and Gemini CLI. Team summaries are next: see the [roadmap](#roadmap).
+> **Early days.** `roost usage`, `roost verdicts` and `roost context` read Claude Code, Codex and Gemini CLI. See the [roadmap](#roadmap) for what's next.
 
 ## Quick start
 
@@ -215,6 +215,17 @@ It reads whichever session is newest under `--home` — an ephemeral runner has 
 
 Grafana Cloud setup, pipeline mode and the full list of fields: [docs/export.md](docs/export.md).
 
+### Team summaries, with no server at all
+
+No OpenTelemetry backend, no Grafana: `roost merge` combines several people's `roost export --format json` files into one team report, as plain files shared however your team already shares files.
+
+```bash
+npx @thinkingraven/roost export --format json > alice.json   # each person, on their own machine
+npx @thinkingraven/roost merge alice.json bob.json carol.json
+```
+
+It sums the same counts `roost export` already sends — sessions and tokens by agent, skills and MCP servers team-wide, and, if anyone exported with `--rookery`, team-wide verdicts (summed `uses` and `scope_sessions`, so "nobody on the team used it" means exactly that). Needs at least 2 files; `--format json` gives the same report as data.
+
 ## What it reads
 
 | Agent | Session logs | `sources` | `usage` |
@@ -306,13 +317,12 @@ Agents send the whole conversation back to the model on every turn, and most of 
 <details>
 <summary><b>Can I see my whole team's usage?</b></summary>
 
-Today roost reads one machine. Team summaries are on the roadmap: each person exports a counts-only file (no text, no paths outside the repo) and roost merges them into one report. Until then, `--format json` gives you a file per person to combine.
+Yes: `roost merge` combines each person's `roost export --format json` (counts-only, no text, no paths outside the repo) into one team report, as plain files — no server needed. See [Team summaries](#team-summaries-with-no-server-at-all) above.
 </details>
 
 ## Roadmap
 
 - **Context tax, MCP servers**: `roost context --rookery` attributes skills, subagents and rules files (rookery 0.8.0+); an MCP server's tool-definition schemas aren't visible in a static config file, so those still aren't attributed
-- **Team summaries**: counts-only exports merged into one team report
 - **HTML and Markdown reports**, in rookery's style
 
 The detailed plan is in [docs/plan.md](docs/plan.md).
