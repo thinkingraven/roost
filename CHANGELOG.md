@@ -7,6 +7,15 @@ All notable changes to roost are listed here. This project follows [semantic ver
 - **`roost context --rookery <file>`**: attributes part of a repo's average preload to specific skills, subagents and rules files, via rookery 0.8.0's `preloadTokens` field (name + description for a skill or subagent; the whole file for anything always-on). Optional — `roost context` works exactly as before without it.
   - Still not attributed: MCP servers. Their tool-definition schemas aren't visible in a static config file, so `mcp-config` is deliberately left out rather than reported against the wrong number.
   - `--rookery` only ever read from an explicit `--rookery <file>` (or `-` for stdin); unlike `roost verdicts`, `roost context` doesn't assume a pipe is meant for it, since it's fully useful without one.
+- **`roost verdicts --fix`**: turns retire and merge verdicts into a plan — the files to remove, one group per repo, with why (never used in N sessions, or a duplicate of the copy that's used). `--write` applies it: one branch per repo (`roost/retire-skills-<date>`), `git rm` the files, one commit.
+  - **Never pushes, never calls `gh` or any hosting API.** The only command that writes to a repo, and the only place roost shells out to anything — `git`, locally. Pushing and opening the pull request stays a manual step.
+  - A repo with uncommitted changes is skipped, not committed into. A file already gone (removed by hand, or a stale rookery scan) is skipped by name, not an error. A branch name collision gets `-2`, `-3`, and so on.
+  - Personal skills (`~/.claude/skills/…`) have no repo to branch from, so they're counted and left alone.
+- **`roost pipeline`: pipeline mode, for agents running headless in CI.** Call it once, at the end of a job: it reads whichever session is newest under `--home` (an ephemeral runner has exactly one), and reports the job's cost, the skills it ran and the outcome you pass in (`--outcome merged|failed|retried`, `--pr`, `--job` — defaults to `GITHUB_RUN_ID`/`CI_JOB_ID`/`BUILD_ID` if you don't set one).
+  - Shares `roost export`'s config, identity and OTLP code: `--send` posts through the exact same opt-in (`ROOST_EXPORT=on`), the same settings, the same one network call. `--format json` and `--format otlp` work the same way.
+  - Sends the ordinary `roost.activity`/`roost.skill_used`/etc. rows for that one session, plus one new `roost.run` row (job, outcome, tokens, skills, MCP calls) for cost-per-merged-change and success-rate dashboards.
+  - It can't know a PR's outcome before you do — that's on whichever CI step calls it, not roost.
+- **Grafana dashboard:** a new "Factory runs" section — runs, success rate, cost per merged change, runs per day by outcome, runs by repo.
 
 ## 0.4.0 — 2026-10-16
 

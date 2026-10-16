@@ -10,7 +10,8 @@ Guidance for coding agents working on roost.
 
 ## Ground rules
 
-- roost must never execute anything it reads, and makes no network calls except one: `roost export --send`, to the OTLP endpoint the user configured, after an explicit opt-in (`ROOST_EXPORT=on` or `--endpoint`). Nothing else may use the network.
+- roost must never execute anything it reads, and makes no network calls except two, both to the OTLP endpoint the user configured and both needing an explicit opt-in (`ROOST_EXPORT=on` or `--endpoint`): `roost export --send` and `roost pipeline --send`. Nothing else may use the network.
+- The one place roost shells out to anything is `roost verdicts --fix --write` (`src/fix-apply.ts`), and only to `git`, locally: create a branch, `git rm` the planned files, commit. It never pushes and never calls `gh` or any hosting API — that stays a manual step, same as `export --send`/`pipeline --send` stay their own explicit opt-in rather than roost ever deciding to send on its own.
 - Privacy is the product. Read session logs only to find tool calls; never print, store or export prompt or response text. Reports carry names, counts, token numbers and dates only, with home-folder paths shown as `~/…`.
 - No runtime dependencies. Use Node built-ins (`node:fs`, `node:util` `parseArgs`, `node:test`).
 - ESM with NodeNext resolution: import local files with a `.js` extension.

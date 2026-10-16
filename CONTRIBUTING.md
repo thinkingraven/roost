@@ -24,14 +24,17 @@ Node 20 or newer.
 | `src/usage/codex.ts` | Reads Codex rollouts: tool calls, MCP (from end events), skills (`<skill>` blocks), subagents, tokens; forks and subagent threads |
 | `src/usage/gemini.ts` | Reads Gemini CLI sessions (`.json` and `.jsonl`), subagent transcripts and `logs.json`; project roots |
 | `src/usage/agents.ts` | The agents roost reads: names, readers, built-in commands and subagents |
-| `src/export/*` | `roost export`: settings (`config.ts`), repo and person ids (`identity.ts`), daily rows (`rows.ts`), OTLP JSON (`otlp.ts`), the one network call and the sent-days record (`send.ts`), the command (`run.ts`) |
-| `scripts/gen-grafana-dashboard.mjs` | Generates `dashboards/grafana/roost.json` (`npm run dashboard`); a test checks every field it queries is one export sends |
+| `src/export/*` | `roost export`: settings (`config.ts`), repo and person ids (`identity.ts`), daily rows plus `roost.run` (`rows.ts`), OTLP JSON (`otlp.ts`), the one network call and the sent-days record (`send.ts`), the command (`run.ts`) |
+| `src/export/pipeline-run.ts` | `roost pipeline`: one CI job's agent run as a `roost.run` row, sharing export's config, identity and OTLP code |
+| `scripts/gen-grafana-dashboard.mjs` | Generates `dashboards/grafana/roost.json` (`npm run dashboard`); a test checks every field it queries is one export or pipeline sends |
 | `src/usage/aggregate.ts` | Totals across sessions: skills, subagents, MCP servers, commands, tools, repos |
 | `src/usage/types.ts` | `SessionUsage` (names, counts, dates, tokens only, plus `preload`: the first top-level turn's usage) and name cleaning |
 | `src/verdicts.ts` | `roost verdicts`: reads rookery's JSON report and judges each Claude Code skill, command and subagent against the sessions |
+| `src/fix.ts` | `roost verdicts --fix`: turns retire/merge verdicts into a plan of files to remove, grouped by repo. Pure — no filesystem or git calls |
+| `src/fix-apply.ts` | `roost verdicts --fix --write`: the only place roost runs `git` — one branch per repo, `git rm` the planned files, commit. Never pushes, never calls `gh` |
 | `src/decisions.ts` | `roost decisions`: reads rookery's runtime-hook log (`<rookery home>/decisions/*.jsonl`) and groups denies/warnings by rule, agent and repo |
 | `src/context.ts` | `roost context`: groups each session's `preload` by agent and repo, with a per-repo trend, the heaviest sessions and, with `--rookery`, attribution to specific skills/subagents/rules files via `preloadTokens` |
-| `src/report/*` | Terminal and JSON output for `sources`, `usage`, `verdicts`, `decisions` and `context`; colours (`style.ts`), `~/…` paths and number formatting |
+| `src/report/*` | Terminal and JSON output for `sources`, `usage`, `verdicts`, `decisions`, `context` and `fix`; colours (`style.ts`), `~/…` paths and number formatting |
 | `scripts/demo-home.mjs` | Writes a made-up "acme" team's logs, in each agent's real layout, for screenshots and trying roost |
 | `src/version.ts` | Version from `package.json` |
 | `test/` | `node:test` suite with synthetic fixtures |

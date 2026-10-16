@@ -1173,7 +1173,7 @@
     },
     {
       "type": "row",
-      "title": "Safety",
+      "title": "Factory runs",
       "id": 20,
       "collapsed": false,
       "gridPos": {
@@ -1185,10 +1185,149 @@
       "panels": []
     },
     {
-      "type": "bargauge",
-      "title": "Blocked, by policy setting",
-      "description": "Calls rookery's hook blocked, by the .rookery.yml setting that blocked them.",
+      "type": "stat",
+      "title": "Runs",
+      "description": "Agent jobs in CI: one roost.run row per job, from `roost pipeline`.",
       "id": 21,
+      "datasource": {
+        "type": "loki",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 61
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "queryType": "instant",
+          "expr": "count_over_time({service_name=\"roost\"} | event_name=\"roost.run\" | roost_team=~\"$team\" | roost_agent=~\"$agent\" [$__range])",
+          "legendFormat": ""
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Success rate",
+      "description": "Runs whose outcome was merged.",
+      "id": 22,
+      "datasource": {
+        "type": "loki",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 8,
+        "y": 61
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "queryType": "instant",
+          "expr": "100 * count_over_time({service_name=\"roost\"} | event_name=\"roost.run\" | roost_team=~\"$team\" | roost_agent=~\"$agent\" | roost_outcome=\"merged\" [$__range]) / count_over_time({service_name=\"roost\"} | event_name=\"roost.run\" | roost_team=~\"$team\" | roost_agent=~\"$agent\" [$__range])",
+          "legendFormat": ""
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Cost per merged change",
+      "description": "Tokens spent on runs that merged, divided by how many merged.",
+      "id": 23,
+      "datasource": {
+        "type": "loki",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 16,
+        "y": 61
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "queryType": "instant",
+          "expr": "sum_over_time({service_name=\"roost\"} | event_name=\"roost.run\" | roost_team=~\"$team\" | roost_agent=~\"$agent\" | roost_outcome=\"merged\" | unwrap roost_tokens [$__range]) / count_over_time({service_name=\"roost\"} | event_name=\"roost.run\" | roost_team=~\"$team\" | roost_agent=~\"$agent\" | roost_outcome=\"merged\" [$__range])",
+          "legendFormat": ""
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Runs per day, by outcome",
+      "description": "The skills behind a run are in \"Most-run skills\" above, for the same window.",
+      "id": 24,
       "datasource": {
         "type": "loki",
         "uid": "${datasource}"
@@ -1197,7 +1336,146 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 61
+        "y": 65
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "queryType": "range",
+          "expr": "count by (roost_outcome) (count_over_time({service_name=\"roost\"} | event_name=\"roost.run\" | roost_team=~\"$team\" | roost_agent=~\"$agent\" [1d]))",
+          "legendFormat": "{{roost_outcome}}",
+          "step": "1d"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 70,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "barAlignment": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "type": "bargauge",
+      "title": "Runs by repo",
+      "description": "Top 15 repos by agent jobs in the window.",
+      "id": 25,
+      "datasource": {
+        "type": "loki",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 65
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "${datasource}"
+          },
+          "editorMode": "code",
+          "queryType": "instant",
+          "expr": "topk(15, count by (roost_repo) (count_over_time({service_name=\"roost\"} | event_name=\"roost.run\" | roost_team=~\"$team\" | roost_agent=~\"$agent\" [$__range])))",
+          "legendFormat": "{{roost_repo}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#F2A93B"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#F2A93B",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "basic",
+        "showUnfilled": false,
+        "valueMode": "color",
+        "namePlacement": "left",
+        "sizing": "manual",
+        "minVizHeight": 16,
+        "maxVizHeight": 22,
+        "text": {
+          "titleSize": 12,
+          "valueSize": 13
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^Value/",
+          "values": true
+        }
+      },
+      "transformations": [
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Value #A",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Safety",
+      "id": 26,
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 73
+      },
+      "panels": []
+    },
+    {
+      "type": "bargauge",
+      "title": "Blocked, by policy setting",
+      "description": "Calls rookery's hook blocked, by the .rookery.yml setting that blocked them.",
+      "id": 27,
+      "datasource": {
+        "type": "loki",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 74
       },
       "targets": [
         {
@@ -1269,7 +1547,7 @@
       "type": "timeseries",
       "title": "Blocks and warnings per day",
       "description": "",
-      "id": 22,
+      "id": 28,
       "datasource": {
         "type": "loki",
         "uid": "${datasource}"
@@ -1278,7 +1556,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 61
+        "y": 74
       },
       "targets": [
         {

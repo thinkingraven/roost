@@ -98,6 +98,25 @@ How roost matches them:
 
 rookery 0.7.2 or later matches repos exactly. Older reports are matched by folder name. Use `--since` to change the window. Claude Code keeps 30 days of logs by default (`cleanupPeriodDays`).
 
+### Retire and merge them for you
+
+`--fix` turns the retire and merge verdicts into a plan, one branch per repo:
+
+```bash
+npx @thinkingraven/rookery scan ~/code --local --format json | npx @thinkingraven/roost verdicts --fix
+```
+
+```text
+~/code/shop  2 files
+  remove  .claude/skills/old-review/SKILL.md     duplicate of .claude/skills/code-review/SKILL.md, used 40× there
+  remove  .claude/skills/draft-notes/SKILL.md    not used in 30 sessions it was available
+
+Preview only: nothing changed. Run with --write to create one branch per repo above and
+commit the removals (git only: never pushes, never opens a pull request — that part is on you).
+```
+
+Add `--write` to actually do it: one branch per repo (`roost/retire-skills-<date>`), `git rm` the files, one commit. A repo with uncommitted changes is skipped, not committed into. roost never pushes and never calls `gh` or any hosting API — push and open the pull request yourself, the same way you always do.
+
 ## Decisions: what rookery's hook blocked
 
 [rookery's runtime hook](https://github.com/thinkingraven/rookery/blob/main/docs/policy.md#rookery-hook-enforce-the-policy-while-agents-run) checks every tool call against a repo's `.rookery.yml` while an agent works, and logs each deny or warn to `~/.rookery/decisions/`. `roost decisions` reads that log:
@@ -167,7 +186,7 @@ That needs rookery 0.8.0+, for its `preloadTokens` field — a skill or subagent
 
 ## Send it to your dashboards
 
-`roost export` turns the same counts into small daily summaries for your company's own OpenTelemetry backend: Grafana Cloud, Loki, OpenObserve, or any OpenTelemetry Collector. The repo ships a starter Grafana dashboard covering adoption, cost, skills that work (with team-wide verdicts) and safety.
+`roost export` turns the same counts into small daily summaries for your company's own OpenTelemetry backend: Grafana Cloud, Loki, OpenObserve, or any OpenTelemetry Collector. The repo ships a starter Grafana dashboard covering adoption, cost, skills that work (with team-wide verdicts), factory runs and safety.
 
 ```bash
 npx @thinkingraven/roost export                    # preview: exactly what would be sent, nothing sent
@@ -179,7 +198,18 @@ What it sends:
 - **Never:** prompts, code, arguments, file paths or emails.
 - **Finished days only:** each day is sent once.
 
-Grafana Cloud setup, a company-wide rollout and the full list of fields: [docs/export.md](docs/export.md).
+### Pipeline mode: agents running unattended in CI
+
+`roost pipeline` is the same idea for a different kind of session: an agent merging code in CI, with nobody at the keyboard. Call it once, at the end of the job:
+
+```bash
+npx @thinkingraven/roost pipeline --agent claude-code --outcome merged --pr 123
+ROOST_EXPORT=on npx @thinkingraven/roost pipeline --agent claude-code --outcome merged --send
+```
+
+It reads whichever session is newest under `--home` — an ephemeral runner has exactly one — and reports the job's cost, the skills it ran, and the outcome you pass in (`--job` defaults to `GITHUB_RUN_ID` if you don't set one). Same OTLP pipeline, same `ROOST_EXPORT=on` opt-in as `roost export`. It can't know the outcome before you do: if your workflow finishes before the PR merges, call it again with `--outcome merged` from whatever later step learns that.
+
+Grafana Cloud setup, pipeline mode and the full list of fields: [docs/export.md](docs/export.md).
 
 ## What it reads
 
@@ -242,7 +272,8 @@ flowchart LR
 
 ## Privacy
 
-- Runs entirely on your machine, with no telemetry. The one exception is opt-in: `roost export --send` posts counts to the OpenTelemetry endpoint you configure, after an explicit `ROOST_EXPORT=on`. Nothing else uses the network.
+- Runs entirely on your machine, with no telemetry. The one exception is opt-in: `roost export --send` and `roost pipeline --send` post counts to the OpenTelemetry endpoint you configure, after an explicit `ROOST_EXPORT=on`. Nothing else uses the network.
+- `roost verdicts --fix --write` is the only command that writes to your repos, and only with `--write`: a local branch, `git rm`, one commit. It never pushes and never calls `gh` or any hosting API.
 - `roost sources` only lists file names and dates; it never opens your logs.
 - `roost usage` parses log lines to find tool calls, but keeps only names, counts, dates and token numbers. Your prompts, the agents' replies, tool inputs and tool results never reach a report, and tests check that on every change.
 - Paths under your home folder are shown as `~/…`.
@@ -277,7 +308,7 @@ Today roost reads one machine. Team summaries are on the roadmap: each person ex
 ## Roadmap
 
 - **Context tax, MCP servers**: `roost context --rookery` attributes skills, subagents and rules files (rookery 0.8.0+); an MCP server's tool-definition schemas aren't visible in a static config file, so those still aren't attributed
-- **Verdicts, next steps**: the tokens each change saves, and a pull request that retires or merges for you
+- **Verdicts, token savings**: `--fix` branches and commits the removals (0.5.0); the tokens each one saves is now in reach via rookery's `preloadTokens` (0.8.0), but not yet wired into `verdicts`
 - **Team summaries**: counts-only exports merged into one team report
 - **HTML and Markdown reports**, in rookery's style
 
