@@ -19,6 +19,8 @@ import { renderDecisionsJson, renderDecisionsTerminal } from './report/decisions
 import { aggregateContext } from './context.js';
 import { renderContextJson, renderContextTerminal } from './report/context.js';
 import { runExport } from './export/run.js';
+import { runPipeline } from './export/pipeline-run.js';
+import type { PipelineOutcome } from './export/rows.js';
 import { VERSION } from './version.js';
 
 const HELP = `roost v${VERSION}: see what your AI agents actually use.
@@ -37,26 +39,35 @@ Usage
                                  OTEL_EXPORTER_OTLP_ENDPOINT / OTEL_EXPORTER_OTLP_HEADERS
   roost decisions                What rookery's runtime hook denied or warned about, by rule, agent and repo
   roost context                  Context tax: tokens loaded before anyone types a real prompt, per session
+  roost pipeline --agent <a> --outcome <merged|failed|retried>
+                                 One CI job's agent run: cost, skills used and the outcome.
+                                 Call it once, at the end of the job. Preview by default; --send
+                                 posts it the same way roost export does (ROOST_EXPORT=on)
   roost sources                  Find each agent's session logs on this machine
 
 Options
   --since <30d|YYYY-MM-DD|all>   Time window (default: 30d; for export, the days not sent yet, or 7d)
                                  (decisions reads ~/.rookery/decisions, not agent session logs)
-  --agent <name>                 claude-code, codex, gemini or all (default: all with sessions)
+  --agent <name>                 claude-code, codex, gemini or all (default: all with sessions;
+                                 pipeline needs exactly one, not all)
   --rookery <file>               rookery's JSON report for verdicts (or pipe it in; - reads stdin)
   --fix                          verdicts: preview removing retire/merge verdicts, repo by repo
   --write                        verdicts --fix: actually branch, remove and commit (git only)
+  --job <id>                     pipeline: a job id (default: inferred from GITHUB_RUN_ID etc.)
+  --outcome <merged|failed|retried>
+                                 pipeline: what happened to the change the agent made (required)
+  --pr <id>                      pipeline: the pull request or ticket id, if there is one
   --top <n>                      Rows per section in the terminal report (default: 10)
-  --format <terminal|json>       Output format (default: terminal); export also takes otlp
-  --send                         export: send to the configured endpoint (the only network use)
-  --endpoint <url>               export: OTLP/HTTP base URL instead of OTEL_EXPORTER_OTLP_ENDPOINT
-  --team <name>                  export: team label (or ROOST_TEAM)
+  --format <terminal|json>       Output format (default: terminal); export and pipeline also take otlp
+  --send                         export, pipeline: send to the configured endpoint (the only network use)
+  --endpoint <url>               export, pipeline: OTLP/HTTP base URL instead of OTEL_EXPORTER_OTLP_ENDPOINT
+  --team <name>                  export, pipeline: team label (or ROOST_TEAM)
   --home <dir>                   Look in this home folder instead of yours
   --no-color                     Disable colours (also respects NO_COLOR; FORCE_COLOR forces them)
   -v, --version                  Print the version
   -h, --help                     Show this help
 
-roost runs locally. Only \`roost export --send\` uses the network, to the endpoint you configure.
+roost runs locally. Only \`--send\` (export or pipeline) uses the network, to the endpoint you configure.
 Everything roost reports or sends carries names, counts and dates only.
 `;
 
@@ -79,6 +90,14 @@ export function parseSince(value: string, now = new Date()): { since?: Date; win
     if (!Number.isNaN(since.getTime())) return { since, window: `since ${value}` };
   }
   fail(`--since must look like 30d, 2026-09-01 or all, not "${value}"`);
+}
+
+/** A job id from the CI env vars roost knows, or undefined if none are set. */
+function inferJob(env: NodeJS.ProcessEnv): string | undefined {
+  if (env.GITHUB_RUN_ID) return `gh-${env.GITHUB_RUN_ID}${env.GITHUB_RUN_ATTEMPT && env.GITHUB_RUN_ATTEMPT !== '1' ? `-${env.GITHUB_RUN_ATTEMPT}` : ''}`;
+  if (env.CI_JOB_ID) return `gl-${env.CI_JOB_ID}`;
+  if (env.BUILD_ID) return `build-${env.BUILD_ID}`;
+  return undefined;
 }
 
 /** All of stdin (async: a synchronous read of a non-blocking pipe can fail with EAGAIN). */
@@ -105,6 +124,9 @@ async function main(argv: string[]): Promise<number> {
         rookery: { type: 'string' },
         fix: { type: 'boolean', default: false },
         write: { type: 'boolean', default: false },
+        job: { type: 'string' },
+        outcome: { type: 'string' },
+        pr: { type: 'string' },
         agent: { type: 'string', default: 'all' },
         'no-color': { type: 'boolean', default: false },
         version: { type: 'boolean', short: 'v', default: false },
@@ -120,10 +142,12 @@ async function main(argv: string[]): Promise<number> {
   if (positionals.length === 0) { process.stdout.write(HELP); return 0; }
 
   const [command, ...rest] = positionals;
-  if (!['sources', 'usage', 'verdicts', 'export', 'decisions', 'context'].includes(command)) fail(`unknown command "${command}"`);
+  if (!['sources', 'usage', 'verdicts', 'export', 'decisions', 'context', 'pipeline'].includes(command)) fail(`unknown command "${command}"`);
   if (rest.length) fail(`unexpected argument "${rest[0]}"`);
-  if (o.format !== 'terminal' && o.format !== 'json' && !(command === 'export' && o.format === 'otlp')) fail(`--format must be terminal or json${command === 'export' ? ' or otlp' : ''}, not "${o.format}"`);
-  if (command !== 'export' && (o.send || o.endpoint || o.team)) fail('--send, --endpoint and --team are options of roost export');
+  const otlpOk = command === 'export' || command === 'pipeline';
+  if (o.format !== 'terminal' && o.format !== 'json' && !(otlpOk && o.format === 'otlp')) fail(`--format must be terminal or json${otlpOk ? ' or otlp' : ''}, not "${o.format}"`);
+  if (!otlpOk && (o.send || o.endpoint || o.team)) fail('--send, --endpoint and --team are options of roost export and roost pipeline');
+  if (command !== 'pipeline' && (o.job || o.outcome || o.pr)) fail('--job, --outcome and --pr are options of roost pipeline');
   if (command !== 'verdicts' && (o.fix || o.write)) fail('--fix and --write are options of roost verdicts');
   if (o.write && !o.fix) fail('--write needs --fix');
   const home = o.home ? resolve(o.home) : homedir();
@@ -145,6 +169,21 @@ async function main(argv: string[]): Promise<number> {
     const view = { report: aggregateDecisions(decisions, skipped), found, window, top, color };
     process.stdout.write(o.format === 'json' ? renderDecisionsJson(view) : renderDecisionsTerminal(view));
     return 0;
+  }
+
+  if (command === 'pipeline') {
+    const def = AGENTS.find((a) => a.flag === o.agent);
+    if (!def) fail(`pipeline needs exactly one --agent (${AGENTS.map((a) => a.flag).join(', ')}), not "${o.agent}"`);
+    if (!o.outcome) fail('pipeline needs --outcome merged, failed or retried');
+    if (o.outcome !== 'merged' && o.outcome !== 'failed' && o.outcome !== 'retried') fail(`--outcome must be merged, failed or retried, not "${o.outcome}"`);
+    const job = o.job ?? inferJob(process.env) ?? `job-${Date.now()}`;
+    const r = await runPipeline({
+      home, env: process.env, agent: def, job, outcome: o.outcome as PipelineOutcome, pr: o.pr,
+      send: o.send as boolean, format: o.format as 'terminal' | 'json' | 'otlp', endpoint: o.endpoint, team: o.team, color,
+    });
+    process.stdout.write(r.stdout);
+    process.stderr.write(r.stderr);
+    return r.exitCode;
   }
 
   const flags = ['all', ...AGENTS.map((a) => a.flag)];

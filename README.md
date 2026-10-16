@@ -174,7 +174,7 @@ A repo whose preload keeps growing usually means a skill, rules file or MCP serv
 
 ## Send it to your dashboards
 
-`roost export` turns the same counts into small daily summaries for your company's own OpenTelemetry backend: Grafana Cloud, Loki, OpenObserve, or any OpenTelemetry Collector. The repo ships a starter Grafana dashboard covering adoption, cost, skills that work (with team-wide verdicts) and safety.
+`roost export` turns the same counts into small daily summaries for your company's own OpenTelemetry backend: Grafana Cloud, Loki, OpenObserve, or any OpenTelemetry Collector. The repo ships a starter Grafana dashboard covering adoption, cost, skills that work (with team-wide verdicts), factory runs and safety.
 
 ```bash
 npx @thinkingraven/roost export                    # preview: exactly what would be sent, nothing sent
@@ -186,7 +186,18 @@ What it sends:
 - **Never:** prompts, code, arguments, file paths or emails.
 - **Finished days only:** each day is sent once.
 
-Grafana Cloud setup, a company-wide rollout and the full list of fields: [docs/export.md](docs/export.md).
+### Pipeline mode: agents running unattended in CI
+
+`roost pipeline` is the same idea for a different kind of session: an agent merging code in CI, with nobody at the keyboard. Call it once, at the end of the job:
+
+```bash
+npx @thinkingraven/roost pipeline --agent claude-code --outcome merged --pr 123
+ROOST_EXPORT=on npx @thinkingraven/roost pipeline --agent claude-code --outcome merged --send
+```
+
+It reads whichever session is newest under `--home` — an ephemeral runner has exactly one — and reports the job's cost, the skills it ran, and the outcome you pass in (`--job` defaults to `GITHUB_RUN_ID` if you don't set one). Same OTLP pipeline, same `ROOST_EXPORT=on` opt-in as `roost export`. It can't know the outcome before you do: if your workflow finishes before the PR merges, call it again with `--outcome merged` from whatever later step learns that.
+
+Grafana Cloud setup, pipeline mode and the full list of fields: [docs/export.md](docs/export.md).
 
 ## What it reads
 
@@ -249,7 +260,7 @@ flowchart LR
 
 ## Privacy
 
-- Runs entirely on your machine, with no telemetry. The one exception is opt-in: `roost export --send` posts counts to the OpenTelemetry endpoint you configure, after an explicit `ROOST_EXPORT=on`. Nothing else uses the network.
+- Runs entirely on your machine, with no telemetry. The one exception is opt-in: `roost export --send` and `roost pipeline --send` post counts to the OpenTelemetry endpoint you configure, after an explicit `ROOST_EXPORT=on`. Nothing else uses the network.
 - `roost verdicts --fix --write` is the only command that writes to your repos, and only with `--write`: a local branch, `git rm`, one commit. It never pushes and never calls `gh` or any hosting API.
 - `roost sources` only lists file names and dates; it never opens your logs.
 - `roost usage` parses log lines to find tool calls, but keeps only names, counts, dates and token numbers. Your prompts, the agents' replies, tool inputs and tool results never reach a report, and tests check that on every change.

@@ -85,6 +85,15 @@ panel('table', 'Fix first: used, with issues', 'Skills people rely on that rooke
 });
 y += 9;
 
+row('Factory runs');
+const selRun = (extra = '') => sel('roost.run', extra);
+const merged = selRun(' | roost_outcome="merged"');
+panel('stat', 'Runs', 'Agent jobs in CI: one roost.run row per job, from `roost pipeline`.', [{ instant: true, expr: `count_over_time(${selRun()} [$__range])` }], { w: 8, h: 4, x: 0, options: stat });
+panel('stat', 'Success rate', 'Runs whose outcome was merged.', [{ instant: true, expr: `100 * count_over_time(${merged} [$__range]) / count_over_time(${selRun()} [$__range])` }], { w: 8, h: 4, x: 8, unit: 'percent', options: stat });
+panel('stat', 'Cost per merged change', 'Tokens spent on runs that merged, divided by how many merged.', [{ instant: true, expr: `sum_over_time(${merged} | unwrap roost_tokens [$__range]) / count_over_time(${merged} [$__range])` }], { w: 8, h: 4, x: 16, unit: 'short', options: stat });
+panel('timeseries', 'Runs per day, by outcome', 'The skills behind a run are in "Most-run skills" above, for the same window.', [{ expr: `count by (roost_outcome) (count_over_time(${selRun()} [1d]))`, legend: '{{roost_outcome}}' }], { x: 0, fieldConfig: { custom: daily } });
+panel('bargauge', 'Runs by repo', 'Top 15 repos by agent jobs in the window.', [{ instant: true, expr: `topk(15, count by (roost_repo) (count_over_time(${selRun()} [$__range])))`, legend: '{{roost_repo}}' }], { x: 12, options: bars });
+
 row('Safety');
 panel('bargauge', 'Blocked, by policy setting', 'Calls rookery\'s hook blocked, by the .rookery.yml setting that blocked them.', [{ instant: true, expr: `${sum('rookery.policy', 'roost_blocked', '$__range', 'roost_setting')} > 0`, legend: '{{roost_setting}}' }], { x: 0, options: bars });
 panel('timeseries', 'Blocks and warnings per day', '', [

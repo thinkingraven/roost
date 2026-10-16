@@ -13,7 +13,7 @@ import type { Judged } from '../verdicts.js';
 
 export type EventName =
   | 'roost.activity' | 'roost.skill_used' | 'roost.subagent_used' | 'roost.command_used' | 'roost.mcp_used'
-  | 'roost.verdict' | 'rookery.policy';
+  | 'roost.verdict' | 'rookery.policy' | 'roost.run';
 
 export interface Row {
   event: EventName;
@@ -123,6 +123,36 @@ export function verdictRows(judged: Judged[], day: string, id: Identity, home: s
     // scope_sessions: sessions where it was available. Summed across people it tells "nobody used it" from "nobody worked there".
     values: { uses: j.uses, sessions: j.sessions, scope_sessions: j.scopeSessions, issues: j.issues.length },
   }));
+}
+
+export type PipelineOutcome = 'merged' | 'failed' | 'retried';
+
+/** One CI job's agent run: `roost pipeline` (pipeline mode, for headless/CI agents). */
+export interface PipelineRun {
+  job: string;
+  agent: string;
+  outcome: PipelineOutcome;
+  pr?: string;
+  day: string;
+  repo?: string;
+  tokens: number;
+  skills: number;
+  mcpCalls: number;
+}
+
+/** One summary row per job: cost, skills used and the outcome, so a dashboard can show cost per
+ * merged change and success rate. The skills themselves still come from the ordinary
+ * `roost.skill_used` rows `usageRows` makes for the same session. */
+export function pipelineRunRow(run: PipelineRun): Row {
+  return {
+    event: 'roost.run',
+    day: run.day,
+    agent: run.agent,
+    repo: run.repo,
+    item: { key: 'job', value: run.job },
+    labels: { outcome: run.outcome, ...(run.pr ? { pr: run.pr } : {}) },
+    values: { tokens: run.tokens, skills: run.skills, mcp_calls: run.mcpCalls },
+  };
 }
 
 /** A stable id for a row: the same person, day, event, agent, repo and item always gives the same id. */
