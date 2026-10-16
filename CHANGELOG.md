@@ -4,6 +4,10 @@ All notable changes to roost are listed here. This project follows [semantic ver
 
 ## 0.5.0 — 2026-10-16
 
+- **`roost verdicts --fix`**: turns retire and merge verdicts into a plan — the files to remove, one group per repo, with why (never used in N sessions, or a duplicate of the copy that's used). `--write` applies it: one branch per repo (`roost/retire-skills-<date>`), `git rm` the files, one commit.
+  - **Never pushes, never calls `gh` or any hosting API.** The only command that writes to a repo, and the only place roost shells out to anything — `git`, locally. Pushing and opening the pull request stays a manual step.
+  - A repo with uncommitted changes is skipped, not committed into. A file already gone (removed by hand, or a stale rookery scan) is skipped by name, not an error. A branch name collision gets `-2`, `-3`, and so on.
+  - Personal skills (`~/.claude/skills/…`) have no repo to branch from, so they're counted and left alone.
 - **`roost pipeline`: pipeline mode, for agents running headless in CI.** Call it once, at the end of a job: it reads whichever session is newest under `--home` (an ephemeral runner has exactly one), and reports the job's cost, the skills it ran and the outcome you pass in (`--outcome merged|failed|retried`, `--pr`, `--job` — defaults to `GITHUB_RUN_ID`/`CI_JOB_ID`/`BUILD_ID` if you don't set one).
   - Shares `roost export`'s config, identity and OTLP code: `--send` posts through the exact same opt-in (`ROOST_EXPORT=on`), the same settings, the same one network call. `--format json` and `--format otlp` work the same way.
   - Sends the ordinary `roost.activity`/`roost.skill_used`/etc. rows for that one session, plus one new `roost.run` row (job, outcome, tokens, skills, MCP calls) for cost-per-merged-change and success-rate dashboards.

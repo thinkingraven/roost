@@ -11,6 +11,9 @@ import { aggregate } from './usage/aggregate.js';
 import { AGENTS, type AgentDef } from './usage/agents.js';
 import { renderVerdictsJson, renderVerdictsTerminal } from './report/verdicts.js';
 import { InputError, judge, parseRookery } from './verdicts.js';
+import { planFix } from './fix.js';
+import { applyFix } from './fix-apply.js';
+import { renderFixApplyJson, renderFixApplyTerminal, renderFixPreviewJson, renderFixPreviewTerminal } from './report/fix.js';
 import { aggregateDecisions, readDecisions } from './decisions.js';
 import { renderDecisionsJson, renderDecisionsTerminal } from './report/decisions.js';
 import { aggregateContext } from './context.js';
@@ -28,6 +31,8 @@ Usage
   roost verdicts                 Keep, fix, merge or retire each skill: rookery's inventory joined
                                  with what your agents actually ran. Pipe rookery's JSON in:
                                    rookery scan ~/code --local --format json | roost verdicts
+  roost verdicts --fix           Preview: a branch and commit, per repo, removing the retire/merge
+                                 verdicts above (--write applies it; never pushes, never opens a PR)
   roost export                   Preview the daily, counts-only summaries roost can send to your
                                  company's OpenTelemetry backend (Grafana, Loki, OpenObserve, a Collector)
   roost export --send            Send the finished days not sent yet. Needs ROOST_EXPORT=on and
@@ -46,6 +51,8 @@ Options
   --agent <name>                 claude-code, codex, gemini or all (default: all with sessions;
                                  pipeline needs exactly one, not all)
   --rookery <file>               rookery's JSON report for verdicts (or pipe it in; - reads stdin)
+  --fix                          verdicts: preview removing retire/merge verdicts, repo by repo
+  --write                        verdicts --fix: actually branch, remove and commit (git only)
   --job <id>                     pipeline: a job id (default: inferred from GITHUB_RUN_ID etc.)
   --outcome <merged|failed|retried>
                                  pipeline: what happened to the change the agent made (required)
@@ -115,6 +122,8 @@ async function main(argv: string[]): Promise<number> {
         format: { type: 'string', default: 'terminal' },
         home: { type: 'string' },
         rookery: { type: 'string' },
+        fix: { type: 'boolean', default: false },
+        write: { type: 'boolean', default: false },
         job: { type: 'string' },
         outcome: { type: 'string' },
         pr: { type: 'string' },
@@ -139,6 +148,8 @@ async function main(argv: string[]): Promise<number> {
   if (o.format !== 'terminal' && o.format !== 'json' && !(otlpOk && o.format === 'otlp')) fail(`--format must be terminal or json${otlpOk ? ' or otlp' : ''}, not "${o.format}"`);
   if (!otlpOk && (o.send || o.endpoint || o.team)) fail('--send, --endpoint and --team are options of roost export and roost pipeline');
   if (command !== 'pipeline' && (o.job || o.outcome || o.pr)) fail('--job, --outcome and --pr are options of roost pipeline');
+  if (command !== 'verdicts' && (o.fix || o.write)) fail('--fix and --write are options of roost verdicts');
+  if (o.write && !o.fix) fail('--write needs --fix');
   const home = o.home ? resolve(o.home) : homedir();
   const color = useColor(o['no-color']);
 
@@ -214,8 +225,19 @@ async function main(argv: string[]): Promise<number> {
       if (s.first && (!first || s.first < first)) first = s.first;
       if (s.last && (!last || s.last > last)) last = s.last;
     }
+    const report = judge(rookery, sessions, home);
+    if (o.fix) {
+      const plan = planFix(rookery, report, home);
+      if (o.write) {
+        const result = applyFix(plan);
+        process.stdout.write(o.format === 'json' ? renderFixApplyJson(result, home) : renderFixApplyTerminal(result, home, color));
+      } else {
+        process.stdout.write(o.format === 'json' ? renderFixPreviewJson({ plan, home, color }) : renderFixPreviewTerminal({ plan, home, color }));
+      }
+      return 0;
+    }
     const view = {
-      report: judge(rookery, sessions, home), window, sessions: sessions.length, first, last,
+      report, window, sessions: sessions.length, first, last,
       agents: read.map((r) => ({ id: r.def.id, sessions: r.sessions.length })),
       rookery: { version: rookery.tool.version, scannedAt: rookery.scannedAt }, top, color,
     };
