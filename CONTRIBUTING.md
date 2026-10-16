@@ -33,7 +33,7 @@ Node 20 or newer.
 | `src/fix.ts` | `roost verdicts --fix`: turns retire/merge verdicts into a plan of files to remove, grouped by repo. Pure — no filesystem or git calls |
 | `src/fix-apply.ts` | `roost verdicts --fix --write`: the only place roost runs `git` — one branch per repo, `git rm` the planned files, commit. Never pushes, never calls `gh` |
 | `src/decisions.ts` | `roost decisions`: reads rookery's runtime-hook log (`<rookery home>/decisions/*.jsonl`) and groups denies/warnings by rule, agent and repo |
-| `src/context.ts` | `roost context`: groups each session's `preload` by agent and repo, with a per-repo trend and the heaviest sessions |
+| `src/context.ts` | `roost context`: groups each session's `preload` by agent and repo, with a per-repo trend, the heaviest sessions and, with `--rookery`, attribution to specific skills/subagents/rules files via `preloadTokens` |
 | `src/report/*` | Terminal and JSON output for `sources`, `usage`, `verdicts`, `decisions`, `context` and `fix`; colours (`style.ts`), `~/…` paths and number formatting |
 | `scripts/demo-home.mjs` | Writes a made-up "acme" team's logs, in each agent's real layout, for screenshots and trying roost |
 | `src/version.ts` | Version from `package.json` |

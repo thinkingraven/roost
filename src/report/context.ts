@@ -1,6 +1,6 @@
 import { agentDef } from '../usage/agents.js';
 import type { AgentId } from '../sources.js';
-import type { ContextReport, RepoTrend } from '../context.js';
+import type { Attribution, ContextReport, RepoTrend } from '../context.js';
 import { VERSION } from '../version.js';
 import { compact, count, day, tilde } from './format.js';
 import { style } from './style.js';
@@ -23,6 +23,12 @@ function trendNote(t: RepoTrend): string | undefined {
   if (change > GROWTH_THRESHOLD) return `growing: ${arrow} (+${Math.round(change * 100)}%)`;
   if (change < -GROWTH_THRESHOLD) return `shrinking: ${arrow} (${Math.round(change * 100)}%)`;
   return `steady: ${arrow}`;
+}
+
+function attributionLine(a: Attribution): string {
+  const top = a.artifacts.slice(0, 3).map((x) => `${x.name} ${compact(x.preloadTokens)}`);
+  const rest = a.artifacts.length - top.length;
+  return `rookery accounts for ${compact(a.total)} of that: ${top.join(', ')}${rest > 0 ? `, +${rest} more` : ''}`;
 }
 
 export function renderContextTerminal(v: ContextView): string {
@@ -58,6 +64,7 @@ export function renderContextTerminal(v: ContextView): string {
     for (const x of shown) {
       const note = trendNote(x);
       out.push(`  ${tilde(x.repo, v.home).padEnd(width)}  ${bold(compact(x.average))} avg${dim(` (${count(x.sessions, 'session')})`)}${note ? sep + dim(note) : ''}`);
+      if (x.attributed?.total) out.push(`    ${dim(attributionLine(x.attributed))}`);
     }
     if (r.byRepo.length > shown.length) out.push(dim(`  … ${r.byRepo.length - shown.length} more (--top ${r.byRepo.length} shows them all)`));
   }
@@ -71,8 +78,10 @@ export function renderContextTerminal(v: ContextView): string {
 
   out.push(
     '',
-    dim('"Preload" is each session’s first turn, before anyone types a real prompt — not a'),
-    dim('breakdown by skill or MCP server: rookery’s own per-artifact size isn’t the right unit for that yet.'),
+    dim('"Preload" is each session’s first turn, before anyone types a real prompt.'),
+    ...(r.hasRookery
+      ? [dim('rookery accounts for skills, subagents and rules files; MCP tool-definition schemas still aren’t something it can see.')]
+      : [dim('Not a breakdown by skill or MCP server yet — pipe in a rookery scan with --rookery for that (skills and rules files).')]),
     dim('Nothing leaves this machine.'),
     '',
   );
@@ -86,6 +95,7 @@ export function renderContextJson(v: ContextView): string {
     window: v.window,
     measured: r.measured,
     unmeasured: r.unmeasured,
+    hasRookery: r.hasRookery,
     average: r.average,
     byAgent: r.byAgent,
     byRepo: r.byRepo.map((x) => ({
@@ -94,6 +104,7 @@ export function renderContextJson(v: ContextView): string {
       average: x.average,
       earliest: x.earliest ? { when: x.earliest.when.toISOString(), total: x.earliest.total } : null,
       latest: x.latest ? { when: x.latest.when.toISOString(), total: x.latest.total } : null,
+      attributed: x.attributed ?? null,
     })),
     heaviest: r.heaviest.map((x) => ({
       agent: x.agent, repo: x.repo ? tilde(x.repo, v.home) : null, when: x.when?.toISOString() ?? null, preload: x.preload, total: x.total,

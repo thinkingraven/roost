@@ -39,6 +39,8 @@ Usage
                                  OTEL_EXPORTER_OTLP_ENDPOINT / OTEL_EXPORTER_OTLP_HEADERS
   roost decisions                What rookery's runtime hook denied or warned about, by rule, agent and repo
   roost context                  Context tax: tokens loaded before anyone types a real prompt, per session
+  roost context --rookery <file> Also attribute part of it to specific skills, rules files and
+                                 subagents (rookery 0.8.0+)
   roost pipeline --agent <a> --outcome <merged|failed|retried>
                                  One CI job's agent run: cost, skills used and the outcome.
                                  Call it once, at the end of the job. Preview by default; --send
@@ -50,7 +52,9 @@ Options
                                  (decisions reads ~/.rookery/decisions, not agent session logs)
   --agent <name>                 claude-code, codex, gemini or all (default: all with sessions;
                                  pipeline needs exactly one, not all)
-  --rookery <file>               rookery's JSON report for verdicts (or pipe it in; - reads stdin)
+  --rookery <file>               rookery's JSON report, for verdicts (required) or context (optional,
+                                 attributes part of the preload to specific skills, rules files and
+                                 subagents; needs rookery 0.8.0+ for preloadTokens). - reads stdin
   --fix                          verdicts: preview removing retire/merge verdicts, repo by repo
   --write                        verdicts --fix: actually branch, remove and commit (git only)
   --job <id>                     pipeline: a job id (default: inferred from GITHUB_RUN_ID etc.)
@@ -245,9 +249,16 @@ async function main(argv: string[]): Promise<number> {
     return 0;
   }
   if (command === 'context') {
+    let rookery;
+    if (o.rookery) {
+      try { rookery = parseRookery(o.rookery === '-' ? await readStdin() : readFileSync(o.rookery, 'utf8')); } catch (err) {
+        if (err instanceof InputError) fail(err.message);
+        fail(`can't read ${o.rookery}: ${(err as Error).message}`);
+      }
+    }
     const read = await Promise.all(chosen.map((def) => def.read(home, since)));
     const sessions = read.flatMap((r) => r.sessions);
-    const view = { report: aggregateContext(sessions), window, home, top, color };
+    const view = { report: aggregateContext(sessions, rookery, home), window, home, top, color };
     process.stdout.write(o.format === 'json' ? renderContextJson(view) : renderContextTerminal(view));
     return 0;
   }

@@ -43,11 +43,9 @@ Both share nothing but the log format: `roost export`'s reader (`src/export/rows
 
 This is a measurement, not an estimate: it's exactly what that turn's prompt cost, in whichever agent sent it.
 
-**What it can't do yet:** attribute that cost to a specific skill, rules file or MCP server. rookery's `tokens` field (`Math.ceil(text.length / 4)` on the artifact's raw file) is the wrong unit for both:
-- a skill's token count is its *whole file*, but only its frontmatter description preloads into every session — the body loads on invocation. rookery's number overstates a skill's preload cost, often by 10–50×.
-- an MCP server's token count is its *config entry* (command/args/env), not the tool-definition schemas the server sends at connect time — the thing that actually costs tokens every session. rookery's number understates it, likely by more.
+**Attribution, partial since rookery 0.8.0 / roost 0.5.0:** `roost context --rookery <file>` (pipe in `rookery scan --format json`) attributes part of a repo's average to specific skills, subagents and rules files, via rookery's `preloadTokens` field — name + description for a skill or subagent (the body loads only on invocation), the whole file for anything always-on (rules, settings, mcp-config, plugin), where that already was the preload cost. rookery's older `tokens` field (whole file, for everything) stays as it was and is still the wrong unit for a skill or subagent on its own.
 
-Fixing this needs a new, more precise rookery field (description-only size for skills; a way to size an MCP server's actual tool schemas), not a join against what rookery already reports. Until then, `roost context` reports the total and a per-repo trend, and says plainly that it doesn't break it down further.
+**Still not attributed: MCP servers.** An MCP server's config entry (command/args/env) isn't the tool-definition schemas it sends at connect time — the thing that actually costs tokens every session — and rookery can't see those from a static file. `ATTRIBUTABLE_KINDS` in roost's `src/context.ts` deliberately excludes `mcp-config` for this reason. Sizing a server's real tool schemas would need rookery to connect to it (or some other way to see its declared tools), which is a bigger, separate piece of work.
 
 ## Log sources
 
