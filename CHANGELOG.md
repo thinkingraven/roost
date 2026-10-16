@@ -2,6 +2,13 @@
 
 All notable changes to roost are listed here. This project follows [semantic versioning](https://semver.org).
 
+## 0.6.0 — 2026-10-16
+
+- **`roost verdicts` reports the tokens each retire or merge verdict would save**, via rookery 0.8.0's `preloadTokens`: what that skill, subagent or rules file costs every session it's installed in, not just when it runs.
+  - Shown per item (`saves 310 tokens/session`), totalled per verdict section, and totalled for the whole report.
+  - `--fix` carries the same numbers into its preview and its per-repo total; `--write`'s commit message says what it saved.
+  - Optional, same as context attribution: a rookery scan from before 0.8.0 has no `preloadTokens`, and everything works exactly as before, just without the numbers.
+
 ## 0.5.0 — 2026-10-16
 
 - **`roost context --rookery <file>`**: attributes part of a repo's average preload to specific skills, subagents and rules files, via rookery 0.8.0's `preloadTokens` field (name + description for a skill or subagent; the whole file for anything always-on). Optional — `roost context` works exactly as before without it.

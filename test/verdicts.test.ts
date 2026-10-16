@@ -149,6 +149,35 @@ test('verdicts: repo paths compare the same on every OS', async () => {
   assert.equal(verdictOf(r, 'fmt').verdict, 'keep', 'a Windows session path matches a ~/ repo root');
 });
 
+test('verdicts: retire and merge verdicts carry preloadTokens, summed as tokensSavable; keep and no-data don\'t count', () => {
+  const r = judge(report([
+    art('shop', '.claude/skills/old-lint/SKILL.md', 'old-lint', 'skill', { preloadTokens: 120 }),
+    art('shop', '.claude/skills/code-review/SKILL.md', 'code-review', 'skill', { preloadTokens: 80 }),
+    art('api', '.claude/skills/api-docs/SKILL.md', 'api-docs', 'skill', { preloadTokens: 999 }),
+  ]), [session(SHOP, { skills: { 'code-review': 3 } }), session(SHOP)], HOME);
+  assert.equal(verdictOf(r, 'old-lint').preloadTokens, 120);
+  assert.equal(verdictOf(r, 'code-review').preloadTokens, 80, 'kept artifacts still carry it; it\'s just not counted as savable');
+  assert.equal(verdictOf(r, 'api-docs').verdict, 'no-data');
+  assert.equal(r.tokensSavable, 120, 'only the retire verdict counts; no-data and keep do not');
+});
+
+test('verdicts: a rookery scan with no preloadTokens anywhere leaves it undefined and tokensSavable at 0', () => {
+  const r = judge(report([art('shop', '.claude/skills/old-lint/SKILL.md', 'old-lint')]), [session(SHOP)], HOME);
+  assert.equal(verdictOf(r, 'old-lint').verdict, 'retire');
+  assert.equal(verdictOf(r, 'old-lint').preloadTokens, undefined);
+  assert.equal(r.tokensSavable, 0);
+  assert.ok(!renderVerdictsTerminal({ report: r, window: 'last 30 days', sessions: 1, agents: [{ id: 'claude-code', sessions: 1 }], first: null, last: null, rookery: { version: '0.7.2' }, top: 10 }).includes('tokens/session'), 'says nothing about tokens when rookery has none to report');
+});
+
+test('verdicts: a merge verdict reports the tokens its own removal would save, not the winner\'s', () => {
+  const a = art('shop', '.claude/skills/review/SKILL.md', 'review', 'skill', { preloadTokens: 50 });
+  const b = art('shop', '.claude/skills/review-v2/SKILL.md', 'review-v2', 'skill', { preloadTokens: 200 });
+  const r = judge(report([a, b], { clusters: [{ members: [{ artifactId: a.id }, { artifactId: b.id }] }] }), [session(SHOP, { skills: { 'review-v2': 4 } })], HOME);
+  assert.equal(verdictOf(r, 'review').verdict, 'merge');
+  assert.equal(verdictOf(r, 'review').preloadTokens, 50, 'the losing copy\'s own cost, not the winner\'s 200');
+  assert.equal(r.tokensSavable, 50);
+});
+
 test('verdicts: only a rookery JSON report is accepted', () => {
   assert.throws(() => parseRookery('not json'), InputError);
   assert.throws(() => parseRookery('{"tool":{"name":"other"},"artifacts":[]}'), /not a rookery report/);
@@ -188,4 +217,31 @@ test('CLI: verdicts from piped rookery JSON and real-shaped logs, with nothing p
   const bad = spawnSync(process.execPath, [CLI, 'verdicts', '--home', home, '--rookery', join(home, 'missing.json')], { encoding: 'utf8', env });
   assert.equal(bad.status, 2);
   assert.match(bad.stderr, /can't read/);
+});
+
+test('CLI: verdicts reports tokens saved by retire and merge, from rookery\'s preloadTokens', () => {
+  const home = mkdtempSync(join(tmpdir(), 'roost-verdicts-tokens-'));
+  const shop = join(home, 'code', 'shop');
+  mkdirSync(join(shop, '.git'), { recursive: true });
+  const log = join(home, '.claude', 'projects', '-code-shop', 's-1.jsonl');
+  mkdirSync(dirname(log), { recursive: true });
+  const t = new Date(Date.now() - 86_400_000).toISOString();
+  const lines = [
+    { type: 'assistant', uuid: 'a1', sessionId: 's-1', cwd: shop, timestamp: t, requestId: 'r1', message: { role: 'assistant', id: 'm1', content: [{ type: 'tool_use', id: 't1', name: 'Skill', input: { skill: 'kept' } }] } },
+  ];
+  writeFileSync(log, lines.map((l) => JSON.stringify(l)).join('\n') + '\n');
+  const rk = report([
+    art('shop', '.claude/skills/unused/SKILL.md', 'unused', 'skill', { preloadTokens: 150 }),
+    art('shop', '.claude/skills/kept/SKILL.md', 'kept', 'skill', { preloadTokens: 90 }),
+  ]);
+  const env = { ...process.env, FORCE_COLOR: '', NO_COLOR: '' };
+  const out = spawnSync(process.execPath, [CLI, 'verdicts', '--home', home, '--no-color', '--since', 'all'], { input: JSON.stringify(rk), encoding: 'utf8', env });
+  assert.equal(out.status, 0, out.stderr);
+  assert.match(out.stdout, /150 tokens\/session on the table, from the retire and merge verdicts below\./);
+  assert.match(out.stdout, /RETIRE 1\s+\S.*·\s+150 tokens\/session/);
+  assert.match(out.stdout, /not used in 1 session, saves 150 tokens\/session/);
+
+  const json = JSON.parse(spawnSync(process.execPath, [CLI, 'verdicts', '--home', home, '--since', 'all', '--format', 'json'], { input: JSON.stringify(rk), encoding: 'utf8', env }).stdout);
+  assert.equal(json.tokensSavable, 150);
+  assert.equal(json.verdicts.find((v: { name: string }) => v.name === 'unused').preloadTokens, 150);
 });

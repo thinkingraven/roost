@@ -61,6 +61,8 @@ export interface Judged {
   mergeInto?: { relPath: string; repo: string; uses: number };
   /** Not used itself, but a namespaced copy with the same name was (a claude.ai or plugin skill). */
   copyUsed?: { name: string; uses: number };
+  /** rookery 0.8.0+'s preloadTokens: what removing this would stop loading every session. Absent from older scans. */
+  preloadTokens?: number;
 }
 
 export interface Unmatched { agent: AgentId; kind: 'skill' | 'command' | 'subagent'; name: string; uses: number }
@@ -73,6 +75,9 @@ export interface VerdictReport {
   notJudged: Record<string, number>;
   /** True when rookery's report has no repoRoot (before 0.7.2), so repos were matched by folder name. */
   matchedByName: boolean;
+  /** Sum of preloadTokens across retire and merge verdicts: a lower bound on what acting on them
+   * would save, only as accurate as rookery's data (0 with no preloadTokens anywhere, pre-0.8.0). */
+  tokensSavable: number;
 }
 
 const JUDGED_KINDS = new Set(['skill', 'command', 'subagent']);
@@ -209,9 +214,11 @@ export function judge(rookery: RookeryReport, sessions: SessionUsage[], home: st
       uses: st.uses, sessions: st.sessions, scopeSessions: st.scopeSessions, lastUsed: st.lastUsed, issues: found, agents: [...loaders.get(a.id)!],
       ...(target ? { mergeInto: { relPath: target.relPath, repo: repoLabel(target), uses: stats.get(target.id)!.uses } } : {}),
       ...(st.uses === 0 && a.kind === 'skill' && namespaced.has(a.name.toLowerCase()) ? { copyUsed: { name: namespaced.get(a.name.toLowerCase())!.name, uses: namespaced.get(a.name.toLowerCase())!.uses } } : {}),
+      ...(a.preloadTokens !== undefined ? { preloadTokens: a.preloadTokens } : {}),
     };
   });
   judged.sort((x, y) => VERDICT_ORDER.indexOf(x.verdict) - VERDICT_ORDER.indexOf(y.verdict) || y.uses - x.uses || y.scopeSessions - x.scopeSessions || x.name.localeCompare(y.name));
+  const tokensSavable = judged.filter((j) => j.verdict === 'retire' || j.verdict === 'merge').reduce((n, j) => n + (j.preloadTokens ?? 0), 0);
 
-  return { judged, unmatched: [...unmatched.values()].sort((x, y) => y.uses - x.uses || x.name.localeCompare(y.name)), notJudged, matchedByName };
+  return { judged, unmatched: [...unmatched.values()].sort((x, y) => y.uses - x.uses || x.name.localeCompare(y.name)), notJudged, matchedByName, tokensSavable };
 }

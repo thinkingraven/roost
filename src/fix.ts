@@ -19,6 +19,8 @@ export interface FileChange {
   absolutePath: string;
   /** Why: "never used in 12 sessions", or "duplicate of <relPath>, used 40x there". */
   reason: string;
+  /** rookery 0.8.0+'s preloadTokens: what removing this file would stop loading every session. Absent from older scans. */
+  preloadTokens?: number;
 }
 
 export interface RepoFix {
@@ -31,6 +33,8 @@ export interface FixPlan {
   repos: RepoFix[];
   /** retire/merge verdicts for personal (`~`) items: counted, never planned for removal. */
   personalSkipped: number;
+  /** Sum of preloadTokens across every planned change: a lower bound, only as accurate as rookery's data. */
+  tokensSavable: number;
 }
 
 function reasonFor(j: Judged): string {
@@ -69,9 +73,11 @@ export function planFix(rookery: RookeryReport, report: VerdictReport, home: str
       relPath: j.relPath,
       absolutePath: join(root, j.relPath),
       reason: reasonFor(j),
+      ...(j.preloadTokens !== undefined ? { preloadTokens: j.preloadTokens } : {}),
     });
     repos.set(root, repoFix);
   }
 
-  return { repos: [...repos.values()].sort((a, b) => a.repoRoot.localeCompare(b.repoRoot)), personalSkipped };
+  const tokensSavable = [...repos.values()].reduce((n, r) => n + r.changes.reduce((m, c) => m + (c.preloadTokens ?? 0), 0), 0);
+  return { repos: [...repos.values()].sort((a, b) => a.repoRoot.localeCompare(b.repoRoot)), personalSkipped, tokensSavable };
 }
