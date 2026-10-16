@@ -51,7 +51,7 @@ Node 20 or newer.
 
 ## Demo data and screenshots
 
-`node scripts/demo-home.mjs /tmp/acme` writes 41 Claude Code sessions (plus a few Codex and Gemini CLI ones) for one fictional teammate, dated September to October 2026, so run it with `--since all`. `test/demo.test.ts` checks roost recovers its exact totals.
+`node scripts/demo-home.mjs /tmp/acme` writes 41 Claude Code sessions (plus a few Codex and Gemini CLI ones) for one fictional teammate, dated over the ~28 days up to yesterday (recomputed every run), so run it with `--since all` for `usage`/`verdicts`/`context`. For `roost export --send`, don't: most log stores reject entries more than about a week old, so send with the default window instead, which only reaches back that far. `test/demo.test.ts` checks roost recovers its exact totals.
 
 For a whole team — `roost export`/`roost merge`, or the Grafana dashboard's adoption panels — `node scripts/demo-team.mjs /tmp/acme-team` writes several of those, one subdirectory per teammate, each with a different seed and its own fake `.gitconfig` email, so `roost export`'s person id (hashed from the git email) is different for each one. `test/demo-team.test.ts` checks the identities are actually distinct.
 

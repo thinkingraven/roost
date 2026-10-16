@@ -6,7 +6,10 @@
 //   node dist/src/cli.js usage --home /tmp/acme --since all
 //   node scripts/demo-home.mjs /tmp/acme-2 7        (a second teammate, from another seed)
 //
-// Everything is made up and deterministic (seeded), dated 12 September to 10 October 2026.
+// Everything is made up and deterministic (seeded) other than the dates, which span the ~28 days
+// up to yesterday, recomputed every run: most log stores (Loki among them, including Grafana
+// Cloud's) reject entries more than about a week old, so `roost export --send` needs fresh dates
+// to actually land anywhere outside a local, relaxed test instance.
 import { mkdirSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -34,8 +37,12 @@ const pick = (list) => list[Math.floor(rand() * list.length)];
 const hex = (n) => Array.from({ length: n }, () => Math.floor(rand() * 16).toString(16)).join('');
 const uuid = () => `${hex(8)}-${hex(4)}-4${hex(3)}-a${hex(3)}-${hex(12)}`;
 
-const START = Date.UTC(2026, 8, 12, 8);
-const END = Date.UTC(2026, 9, 10, 18);
+// The same ~28.4 day span this demo has always covered, ending yesterday at 18:00 UTC — recomputed
+// every run, so the dates are never more than a day stale.
+const SPAN = Date.UTC(2026, 9, 10, 18) - Date.UTC(2026, 8, 12, 8);
+const now = new Date();
+const END = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 1, 18);
+const START = END - SPAN;
 
 // Sessions per repo, then what the team ran: name → [total, repos it runs in].
 const REPOS = { shop: 14, api: 10, payments: 7, mobile: 5, data: 3, infra: 2 };
@@ -156,9 +163,11 @@ for (let i = 0; i < 6; i++) {
   writeDated(join(folder, `rollout-${d.toISOString().slice(0, 19).replace(/:/g, '-')}-${uuid()}.jsonl`), JSON.stringify({ timestamp: d.toISOString(), type: 'session_meta', payload: { cwd: join(dir, 'acme', 'api') } }) + '\n', d);
 }
 for (let i = 0; i < 2; i++) {
+  const d = new Date(END - (i + 1) * 86_400_000);
+  const stamp = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}T09-00`;
   const chats = join(dir, '.gemini', 'tmp', hex(16), 'chats');
   mkdirSync(chats, { recursive: true });
-  writeDated(join(chats, `session-2026-10-0${i + 2}T09-00-${hex(4)}.json`), JSON.stringify({ sessionId: uuid(), messages: [] }) + '\n', Date.UTC(2026, 9, i + 2, 9));
+  writeDated(join(chats, `session-${stamp}-${hex(4)}.json`), JSON.stringify({ sessionId: uuid(), messages: [] }) + '\n', d);
 }
 
 process.stdout.write(`Wrote ${files} demo Claude Code sessions for ${ALL.length} acme repos, plus Codex and Gemini CLI sessions, under ${dir}\n`);
