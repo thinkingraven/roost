@@ -18,6 +18,7 @@ Each row is one day × agent × repo, plus the item it's about. Every row also c
 | `roost.mcp_used` | … × MCP server | calls, tools used, sessions |
 | `rookery.policy` | … × rule | how often rookery's hook blocked or warned (from `~/.rookery/decisions/`) |
 | `roost.verdict` | skill (latest day) | keep / improve / merge / retire / no-data, uses, issues: only with `--rookery` |
+| `roost.run` | job × agent × repo, from `roost pipeline` | tokens, skills used, MCP calls; outcome (merged / failed / retried) and the PR or ticket id as labels |
 
 **Never sent:**
 - prompts, replies or code;
@@ -32,9 +33,21 @@ Each row is one day × agent × repo, plus the item it's about. Every row also c
 - `--format json` lists every row;
 - `--format otlp` prints the exact payload.
 
+## Pipeline mode: for headless and CI agents
+
+`roost usage`, `roost verdicts` and `roost context` all read a person's own interactive sessions. `roost pipeline` is for the other kind: an agent running unattended in CI, merging code with nobody watching. Call it once, at the end of the job, in the same runner the agent used:
+
+```bash
+npx @thinkingraven/roost pipeline --agent claude-code --outcome merged --pr 123
+```
+
+It reads whichever session is newest under `--home` (an ephemeral CI runner has exactly one), and reports the job's cost, the skills it ran, and the outcome you pass in. `--job` defaults to `GITHUB_RUN_ID` (or `CI_JOB_ID`, `BUILD_ID`) if you don't set one. Preview by default; `--send` posts it through the exact same OTLP pipeline and `ROOST_EXPORT=on` opt-in as `roost export` — same settings, same one network call.
+
+What it can't do: know the outcome before you do. If your workflow opens a PR and finishes before the PR merges, call `roost pipeline --outcome merged` from whatever later step learns that (a required status check, a scheduled job, a "PR merged" trigger) — not the step that ran the agent.
+
 ## The network rule
 
-This is the only roost command that uses the network, and only with `--send`. Two things are needed:
+This is the only kind of thing roost sends over the network — `roost export --send` and `roost pipeline --send`. Two things are needed:
 - **an address:** `OTEL_EXPORTER_OTLP_ENDPOINT`, or `--endpoint`;
 - **an explicit yes:** `ROOST_EXPORT=on`, or passing `--endpoint` yourself.
 

@@ -2,6 +2,14 @@
 
 All notable changes to roost are listed here. This project follows [semantic versioning](https://semver.org).
 
+## 0.5.0 — 2026-10-16
+
+- **`roost pipeline`: pipeline mode, for agents running headless in CI.** Call it once, at the end of a job: it reads whichever session is newest under `--home` (an ephemeral runner has exactly one), and reports the job's cost, the skills it ran and the outcome you pass in (`--outcome merged|failed|retried`, `--pr`, `--job` — defaults to `GITHUB_RUN_ID`/`CI_JOB_ID`/`BUILD_ID` if you don't set one).
+  - Shares `roost export`'s config, identity and OTLP code: `--send` posts through the exact same opt-in (`ROOST_EXPORT=on`), the same settings, the same one network call. `--format json` and `--format otlp` work the same way.
+  - Sends the ordinary `roost.activity`/`roost.skill_used`/etc. rows for that one session, plus one new `roost.run` row (job, outcome, tokens, skills, MCP calls) for cost-per-merged-change and success-rate dashboards.
+  - It can't know a PR's outcome before you do — that's on whichever CI step calls it, not roost.
+- **Grafana dashboard:** a new "Factory runs" section — runs, success rate, cost per merged change, runs per day by outcome, runs by repo.
+
 ## 0.4.0 — 2026-10-16
 
 - **`roost decisions`**: a readable report of what rookery's runtime hook (`rookery hook`) denied or warned about — by rule, agent and repo, with one example subject per rule. `roost export` already turns the same log into `rookery.policy` rows for a dashboard; this is the local, no-setup view of it. `--since`, `--top`, `--format json`.

@@ -224,9 +224,10 @@ test('dashboard: every field it queries is one roost export sends', () => {
   assert.ok(exprs.length >= 20);
   const sent = new Set(['roost_day', 'roost_agent', 'roost_repo', 'roost_team', 'roost_person', 'roost_row_id', 'roost_skill', 'roost_subagent', 'roost_command', 'roost_mcp_server', 'roost_rule', 'roost_setting', 'roost_builtin', 'roost_verdict',
     'roost_sessions', 'roost_runs', 'roost_uses', 'roost_calls', 'roost_tools', 'roost_blocked', 'roost_warned', 'roost_issues', 'roost_scope_sessions',
-    'roost_tokens_input', 'roost_tokens_cache_read', 'roost_tokens_cache_write', 'roost_tokens_output', 'roost_skill_runs', 'roost_mcp_calls']);
+    'roost_tokens_input', 'roost_tokens_cache_read', 'roost_tokens_cache_write', 'roost_tokens_output', 'roost_skill_runs', 'roost_mcp_calls',
+    'roost_outcome', 'roost_tokens']);
   const used = new Set(exprs.flatMap((e) => e.match(/roost_[a-z_]+/g) ?? []));
   assert.deepEqual([...used].filter((f) => !sent.has(f)), []);
   const events = new Set(exprs.flatMap((e) => [...e.matchAll(/event_name="([^"]+)"/g)].map((m) => m[1])));
-  assert.deepEqual([...events].filter((e) => !['roost.activity', 'roost.skill_used', 'roost.subagent_used', 'roost.command_used', 'roost.mcp_used', 'roost.verdict', 'rookery.policy'].includes(e)), []);
+  assert.deepEqual([...events].filter((e) => !['roost.activity', 'roost.skill_used', 'roost.subagent_used', 'roost.command_used', 'roost.mcp_used', 'roost.verdict', 'rookery.policy', 'roost.run'].includes(e)), []);
 });
