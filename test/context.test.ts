@@ -7,6 +7,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { aggregateContext } from '../src/context.js';
 import { newSession, type SessionUsage, type Tokens } from '../src/usage/types.js';
+import type { RookeryArtifact, RookeryReport } from '../src/verdicts.js';
 
 const CLI = fileURLToPath(new URL('../src/cli.js', import.meta.url));
 const env = { ...process.env, FORCE_COLOR: '', NO_COLOR: '' };
@@ -69,6 +70,39 @@ test('aggregateContext: a repo with no measured sessions is left out entirely', 
   assert.equal(r.unmeasured, 1);
 });
 
+const rookeryArt = (repoRoot: string, kind: string, name: string, preloadTokens?: number): RookeryArtifact =>
+  ({ id: `${repoRoot}:${name}`, repo: repoRoot === '~' ? '~' : repoRoot, repoRoot, relPath: `${name}.md`, agent: 'claude-code', kind, name, preloadTokens });
+const rookeryReport = (artifacts: RookeryArtifact[]): RookeryReport =>
+  ({ tool: { name: 'rookery', version: '0.8.0' }, artifacts, findings: [], clusters: [] });
+
+test('aggregateContext: --rookery attributes skills and rules to their repo; personal ones count everywhere; mcp-config is excluded', () => {
+  const rookery = rookeryReport([
+    rookeryArt('shop', 'skill', 'code-review', 180),
+    rookeryArt('shop', 'rules', 'CLAUDE.md', 1200),
+    rookeryArt('shop', 'mcp-config', 'mcp', 999),
+    rookeryArt('api', 'skill', 'other', 50),
+    rookeryArt('~', 'skill', 'my-thing', 20),
+  ]);
+  const r = aggregateContext([session('claude-code', 'shop', '2026-10-01T10:00:00Z', 5000)], rookery, '');
+  assert.equal(r.hasRookery, true);
+  const [repo] = r.byRepo;
+  assert.equal(repo.attributed?.total, 180 + 1200 + 20, 'api\'s skill and the mcp-config are left out');
+  assert.deepEqual(repo.attributed?.artifacts.map((a) => a.name).sort(), ['CLAUDE.md', 'code-review', 'my-thing']);
+});
+
+test('aggregateContext: without --rookery, hasRookery is false and nothing is attributed', () => {
+  const r = aggregateContext([session('claude-code', 'shop', '2026-10-01T10:00:00Z', 100)]);
+  assert.equal(r.hasRookery, false);
+  assert.equal(r.byRepo[0].attributed, undefined);
+});
+
+test('aggregateContext: an artifact with no preloadTokens (an older rookery report) counts as zero, not a crash', () => {
+  const rookery = rookeryReport([rookeryArt('shop', 'skill', 'old-skill', undefined)]);
+  const r = aggregateContext([session('claude-code', 'shop', '2026-10-01T10:00:00Z', 100)], rookery, '');
+  assert.equal(r.byRepo[0].attributed?.total, 0);
+  assert.equal(r.byRepo[0].attributed?.artifacts[0].preloadTokens, 0);
+});
+
 function fakeClaudeCodeHome(): string {
   const home = mkdtempSync(join(tmpdir(), 'roost-context-cli-'));
   const shop = join(home, 'code', 'shop');
@@ -126,4 +160,33 @@ test('cli: roost context --agent filters to one agent', () => {
   const home = fakeClaudeCodeHome();
   const r = run('context', '--home', home, '--since', 'all', '--agent', 'codex');
   assert.match(r.stdout, /No session had a turn with usable token usage/);
+});
+
+test('cli: roost context --rookery attributes the average to specific skills and rules files', () => {
+  const home = fakeClaudeCodeHome();
+  const shop = join(home, 'code', 'shop');
+  const rookeryPath = join(home, 'rookery.json');
+  writeFileSync(rookeryPath, JSON.stringify(rookeryReport([
+    rookeryArt(shop, 'skill', 'code-review', 180),
+    rookeryArt(shop, 'rules', 'CLAUDE.md', 1200),
+  ])));
+
+  const terminal = run('context', '--home', home, '--since', 'all', '--rookery', rookeryPath);
+  assert.match(terminal.stdout, /rookery accounts for/);
+  assert.match(terminal.stdout, /CLAUDE\.md/);
+  assert.match(terminal.stdout, /MCP tool-definition schemas still aren.t something it can see/);
+
+  const json = JSON.parse(run('context', '--home', home, '--since', 'all', '--rookery', rookeryPath, '--format', 'json').stdout);
+  assert.equal(json.hasRookery, true);
+  const shopRow = json.byRepo.find((r: { repo: string }) => r.repo.endsWith('shop'));
+  assert.equal(shopRow.attributed.total, 1380);
+});
+
+test('cli: roost context --rookery rejects a file that is not a rookery report', () => {
+  const home = fakeClaudeCodeHome();
+  const badPath = join(home, 'not-rookery.json');
+  writeFileSync(badPath, JSON.stringify({ hello: 'world' }));
+  const r = run('context', '--home', home, '--since', 'all', '--rookery', badPath);
+  assert.equal(r.status, 2);
+  assert.match(r.stderr, /not a rookery report/);
 });

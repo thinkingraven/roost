@@ -11,7 +11,13 @@ import type { SessionUsage } from './usage/types.js';
  * Only names, counts and dates are used; never message text.
  */
 
-export interface RookeryArtifact { id: string; repo: string; repoRoot?: string; relPath: string; agent: string; kind: string; name: string; links?: { relPath: string; agent: string }[] }
+export interface RookeryArtifact {
+  id: string; repo: string; repoRoot?: string; relPath: string; agent: string; kind: string; name: string;
+  links?: { relPath: string; agent: string }[];
+  /** rookery 0.8.0+: what preloads before this artifact is invoked — name+description for a skill
+   * or subagent, the whole file for anything always-on. Absent from older reports. */
+  preloadTokens?: number;
+}
 export interface RookeryFinding { ruleId: string; severity: string; title: string; artifactId: string; confidence: string }
 export interface RookeryCluster { members: { artifactId: string }[]; syncedFrom?: string }
 export interface RookeryReport {

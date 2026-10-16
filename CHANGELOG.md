@@ -2,6 +2,12 @@
 
 All notable changes to roost are listed here. This project follows [semantic versioning](https://semver.org).
 
+## 0.5.0 — 2026-10-16
+
+- **`roost context --rookery <file>`**: attributes part of a repo's average preload to specific skills, subagents and rules files, via rookery 0.8.0's `preloadTokens` field (name + description for a skill or subagent; the whole file for anything always-on). Optional — `roost context` works exactly as before without it.
+  - Still not attributed: MCP servers. Their tool-definition schemas aren't visible in a static config file, so `mcp-config` is deliberately left out rather than reported against the wrong number.
+  - `--rookery` only ever read from an explicit `--rookery <file>` (or `-` for stdin); unlike `roost verdicts`, `roost context` doesn't assume a pipe is meant for it, since it's fully useful without one.
+
 ## 0.4.0 — 2026-10-16
 
 - **`roost decisions`**: a readable report of what rookery's runtime hook (`rookery hook`) denied or warned about — by rule, agent and repo, with one example subject per rule. `roost export` already turns the same log into `rookery.policy` rows for a dashboard; this is the local, no-setup view of it. `--since`, `--top`, `--format json`.

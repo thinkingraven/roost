@@ -151,7 +151,19 @@ HEAVIEST SESSIONS
   ...
 ```
 
-A repo whose preload keeps growing usually means a skill, rules file or MCP server got bigger, or a new one got added everywhere. What it doesn't do yet is say *which one*: rookery's own per-artifact token size is the wrong unit for that (a skill's whole file, when only its description preloads every session; an MCP server's config, not the tool-definition schemas that actually cost tokens) — see the [roadmap](#roadmap).
+A repo whose preload keeps growing usually means a skill, rules file or MCP server got bigger, or a new one got added everywhere. Pipe in a rookery scan to see *which* skills and rules files, by name:
+
+```bash
+npx @thinkingraven/rookery scan ~/code --local --format json | npx @thinkingraven/roost context --rookery -
+```
+
+```text
+BY REPO
+  payments-api  70.1k avg (12 sessions)  ·  growing: 12.0k → 92.2k since 2026-09-20
+    rookery accounts for 1.5k of that: CLAUDE.md 1.2k, code-review 180, release-notes 140
+```
+
+That needs rookery 0.8.0+, for its `preloadTokens` field — a skill or subagent's name and description, not its whole file (only those preload before it's invoked); a rules file's whole content, since that really is always-on. MCP servers still aren't attributed: their tool-definition schemas aren't something rookery can see from a static file.
 
 ## Send it to your dashboards
 
@@ -264,7 +276,7 @@ Today roost reads one machine. Team summaries are on the roadmap: each person ex
 
 ## Roadmap
 
-- **Context tax by artifact**: `roost context` measures the total; attributing it to a specific skill, rules file or MCP server needs a rookery field sized for preload (a skill's description alone, an MCP server's tool-definition schemas), not its current whole-file estimate
+- **Context tax, MCP servers**: `roost context --rookery` attributes skills, subagents and rules files (rookery 0.8.0+); an MCP server's tool-definition schemas aren't visible in a static config file, so those still aren't attributed
 - **Verdicts, next steps**: the tokens each change saves, and a pull request that retires or merges for you
 - **Team summaries**: counts-only exports merged into one team report
 - **HTML and Markdown reports**, in rookery's style
