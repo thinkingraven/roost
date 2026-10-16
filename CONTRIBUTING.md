@@ -36,7 +36,8 @@ Node 20 or newer.
 | `src/decisions.ts` | `roost decisions`: reads rookery's runtime-hook log (`<rookery home>/decisions/*.jsonl`) and groups denies/warnings by rule, agent and repo |
 | `src/context.ts` | `roost context`: groups each session's `preload` by agent and repo, with a per-repo trend, the heaviest sessions and, with `--rookery`, attribution to specific skills/subagents/rules files via `preloadTokens` |
 | `src/report/*` | Terminal and JSON output for `sources`, `usage`, `verdicts`, `decisions`, `context`, `fix` and `merge`; colours (`style.ts`), `~/…` paths and number formatting |
-| `scripts/demo-home.mjs` | Writes a made-up "acme" team's logs, in each agent's real layout, for screenshots and trying roost |
+| `scripts/demo-home.mjs` | Writes one made-up "acme" teammate's logs, in each agent's real layout, for screenshots and trying roost |
+| `scripts/demo-team.mjs` | Writes several made-up teammates with `demo-home.mjs`, each its own seed and git identity, so `roost export`/`roost merge` see a real team |
 | `src/version.ts` | Version from `package.json` |
 | `test/` | `node:test` suite with synthetic fixtures |
 | `docs/plan.md` | What roost will do, and what's done |
@@ -50,7 +51,9 @@ Node 20 or newer.
 
 ## Demo data and screenshots
 
-`node scripts/demo-home.mjs /tmp/acme` writes 41 Claude Code sessions (plus a few Codex and Gemini CLI ones) for a fictional team, dated September to October 2026, so run it with `--since all`. `test/demo.test.ts` checks roost recovers its exact totals.
+`node scripts/demo-home.mjs /tmp/acme` writes 41 Claude Code sessions (plus a few Codex and Gemini CLI ones) for one fictional teammate, dated September to October 2026, so run it with `--since all`. `test/demo.test.ts` checks roost recovers its exact totals.
+
+For a whole team — `roost export`/`roost merge`, or the Grafana dashboard's adoption panels — `node scripts/demo-team.mjs /tmp/acme-team` writes several of those, one subdirectory per teammate, each with a different seed and its own fake `.gitconfig` email, so `roost export`'s person id (hashed from the git email) is different for each one. `test/demo-team.test.ts` checks the identities are actually distinct.
 
 The images in `.github/assets/` are rendered from `FORCE_COLOR=1 node dist/src/cli.js usage --home /tmp/acme --top 5`, in the same frame as rookery's (transparent background, 2360 px wide, 13 px Space Mono). Screenshots and examples only ever use the demo team, never real logs.
 

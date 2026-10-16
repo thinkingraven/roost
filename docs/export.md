@@ -4,7 +4,7 @@
 
 <p align="center"><img src="../.github/assets/grafana-dashboard.png" width="860" alt="The roost Grafana dashboard for a made-up team: 4 people, 176 sessions in 6 repos; active people and tokens per day; sessions and tokens by team and repo; most-run skills, MCP servers and the team's own commands; team-wide verdicts with retire and fix-first lists; policy blocks by setting"></p>
 
-<sub>Made-up data from `scripts/demo-home.mjs`.</sub>
+<sub>Made-up data from `scripts/demo-team.mjs`.</sub>
 
 ## What is sent, and what never is
 
@@ -68,6 +68,16 @@ Having the OpenTelemetry variables set, for example for Claude Code's own teleme
 4. **Import the dashboard.** In Grafana: **Dashboards → New → Import**, upload [`dashboards/grafana/roost.json`](../dashboards/grafana/roost.json), and pick your Grafana Cloud Logs (Loki) data source.
 
 New rows are queryable within an hour or two. Loki writes rows dated to an earlier day into storage before it can query them.
+
+**Want to see it populated before sending real data?** `node scripts/demo-team.mjs /tmp/acme-team` writes several made-up teammates; send them all as one team, then import the dashboard against that:
+
+```bash
+for p in priya marcus lena devon sofia; do
+  npx @thinkingraven/roost export --home /tmp/acme-team/$p --since all --send
+done
+```
+
+It's made-up data end to end, so it's safe to share the dashboard (or a [snapshot](https://grafana.com/docs/grafana/latest/dashboards/share-dashboards-panels/#dashboard-snapshots) of it) outside the company too.
 
 ## Company-wide rollout
 
