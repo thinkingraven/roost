@@ -21,6 +21,8 @@ import { renderContextJson, renderContextTerminal } from './report/context.js';
 import { runExport } from './export/run.js';
 import { runPipeline } from './export/pipeline-run.js';
 import type { PipelineOutcome } from './export/rows.js';
+import { InputError as MergeInputError, mergeExports, parseExportFile } from './merge.js';
+import { renderMergeJson, renderMergeTerminal } from './report/merge.js';
 import { VERSION } from './version.js';
 
 const HELP = `roost v${VERSION}: see what your AI agents actually use.
@@ -45,6 +47,8 @@ Usage
                                  One CI job's agent run: cost, skills used and the outcome.
                                  Call it once, at the end of the job. Preview by default; --send
                                  posts it the same way roost export does (ROOST_EXPORT=on)
+  roost merge <file...>          Combine several people's "roost export --format json" files into
+                                 one team report: no server, no OpenTelemetry backend needed
   roost sources                  Find each agent's session logs on this machine
 
 Options
@@ -146,8 +150,8 @@ async function main(argv: string[]): Promise<number> {
   if (positionals.length === 0) { process.stdout.write(HELP); return 0; }
 
   const [command, ...rest] = positionals;
-  if (!['sources', 'usage', 'verdicts', 'export', 'decisions', 'context', 'pipeline'].includes(command)) fail(`unknown command "${command}"`);
-  if (rest.length) fail(`unexpected argument "${rest[0]}"`);
+  if (!['sources', 'usage', 'verdicts', 'export', 'decisions', 'context', 'pipeline', 'merge'].includes(command)) fail(`unknown command "${command}"`);
+  if (rest.length && command !== 'merge') fail(`unexpected argument "${rest[0]}"`);
   const otlpOk = command === 'export' || command === 'pipeline';
   if (o.format !== 'terminal' && o.format !== 'json' && !(otlpOk && o.format === 'otlp')) fail(`--format must be terminal or json${otlpOk ? ' or otlp' : ''}, not "${o.format}"`);
   if (!otlpOk && (o.send || o.endpoint || o.team)) fail('--send, --endpoint and --team are options of roost export and roost pipeline');
@@ -188,6 +192,23 @@ async function main(argv: string[]): Promise<number> {
     process.stdout.write(r.stdout);
     process.stderr.write(r.stderr);
     return r.exitCode;
+  }
+
+  if (command === 'merge') {
+    if (rest.length < 2) fail('merge needs at least 2 files to combine: roost merge alice.json bob.json …');
+    const top = Number(o.top);
+    if (!Number.isInteger(top) || top < 1) fail(`--top must be a whole number of 1 or more, not "${o.top}"`);
+    const files = rest.map((path) => {
+      let text: string;
+      try { text = readFileSync(path, 'utf8'); } catch (err) { return fail(`can't read ${path}: ${(err as Error).message}`); }
+      try { return parseExportFile(text); } catch (err) {
+        if (err instanceof MergeInputError) fail(`${path}: ${err.message}`);
+        throw err;
+      }
+    });
+    const report = mergeExports(files);
+    process.stdout.write(o.format === 'json' ? renderMergeJson({ report, top, color }) : renderMergeTerminal({ report, top, color }));
+    return 0;
   }
 
   const flags = ['all', ...AGENTS.map((a) => a.flag)];
