@@ -34,7 +34,7 @@ for (const [name, seed] of TEAM) {
   const home = join(dir, name);
   execFileSync(process.execPath, [DEMO_HOME, home, String(seed)], { stdio: 'inherit' });
   const display = name[0].toUpperCase() + name.slice(1);
-  writeFileSync(join(home, '.gitconfig'), `[user]\n\temail = ${name}@acme.example\n\tname = ${display}\n`);
+  writeFileSync(join(home, '.gitconfig'), `[user]\n\temail = ${name}@thinking.raven\n\tname = ${display}\n`);
 }
 
 const names = TEAM.map(([name]) => name).join(' ');
