@@ -107,15 +107,19 @@ npx @thinkingraven/rookery scan ~/code --local --format json | npx @thinkingrave
 ```
 
 ```text
+1 repo ready to branch  ·  310 tokens/session
+
 ~/code/shop  2 files
-  remove  .claude/skills/old-review/SKILL.md     duplicate of .claude/skills/code-review/SKILL.md, used 40× there
-  remove  .claude/skills/draft-notes/SKILL.md    not used in 30 sessions it was available
+  remove  .claude/skills/old-review/SKILL.md     duplicate of .claude/skills/code-review/SKILL.md, used 40× there  (90 tokens/session)
+  remove  .claude/skills/draft-notes/SKILL.md    not used in 30 sessions it was available  (220 tokens/session)
 
 Preview only: nothing changed. Run with --write to create one branch per repo above and
 commit the removals (git only: never pushes, never opens a pull request — that part is on you).
 ```
 
 Add `--write` to actually do it: one branch per repo (`roost/retire-skills-<date>`), `git rm` the files, one commit. A repo with uncommitted changes is skipped, not committed into. roost never pushes and never calls `gh` or any hosting API — push and open the pull request yourself, the same way you always do.
+
+The tokens next to each file are rookery's `preloadTokens` (0.8.0+): what that skill costs every session it's installed in, not just when it runs. Older rookery scans don't have the field, so `--fix` and `verdicts` work exactly as before without it — just without the numbers.
 
 ## Decisions: what rookery's hook blocked
 
@@ -308,7 +312,6 @@ Today roost reads one machine. Team summaries are on the roadmap: each person ex
 ## Roadmap
 
 - **Context tax, MCP servers**: `roost context --rookery` attributes skills, subagents and rules files (rookery 0.8.0+); an MCP server's tool-definition schemas aren't visible in a static config file, so those still aren't attributed
-- **Verdicts, token savings**: `--fix` branches and commits the removals (0.5.0); the tokens each one saves is now in reach via rookery's `preloadTokens` (0.8.0), but not yet wired into `verdicts`
 - **Team summaries**: counts-only exports merged into one team report
 - **HTML and Markdown reports**, in rookery's style
 

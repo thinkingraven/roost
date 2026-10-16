@@ -3,7 +3,7 @@ import type { AgentId } from '../sources.js';
 import { VERSION } from '../version.js';
 import type { Judged, Verdict, VerdictReport } from '../verdicts.js';
 import { VERDICT_ORDER } from '../verdicts.js';
-import { count, day } from './format.js';
+import { compact, count, day } from './format.js';
 import { style } from './style.js';
 
 export interface VerdictView {
@@ -33,10 +33,11 @@ const short: Record<AgentId, string> = { 'claude-code': 'Claude', codex: 'Codex'
 
 function detail(j: Judged): string {
   const times = (n: number) => `${n.toLocaleString('en-US')}×`;
+  const saves = j.preloadTokens !== undefined ? `, saves ${compact(j.preloadTokens)} tokens/session` : '';
   switch (j.verdict) {
     case 'improve': return `used ${times(j.uses)} · ${j.issues.slice(0, 2).join(' · ')}${j.issues.length > 2 ? ` · +${j.issues.length - 2} more` : ''}`;
-    case 'merge': return `→ ${j.mergeInto!.repo === j.repo ? '' : j.mergeInto!.repo + '/'}${j.mergeInto!.relPath} (used ${times(j.mergeInto!.uses)}; this one ${times(j.uses)})`;
-    case 'retire': return `not used in ${count(j.scopeSessions, 'session')}${j.copyUsed ? `; its copy ${j.copyUsed.name} ran ${times(j.copyUsed.uses)}` : ''}`;
+    case 'merge': return `→ ${j.mergeInto!.repo === j.repo ? '' : j.mergeInto!.repo + '/'}${j.mergeInto!.relPath} (used ${times(j.mergeInto!.uses)}; this one ${times(j.uses)}${saves})`;
+    case 'retire': return `not used in ${count(j.scopeSessions, 'session')}${saves}${j.copyUsed ? `; its copy ${j.copyUsed.name} ran ${times(j.copyUsed.uses)}` : ''}`;
     case 'keep': return `used ${times(j.uses)} in ${count(j.sessions, 'session')}${j.lastUsed ? ` · last ${day(j.lastUsed)}` : ''}`;
     case 'no-data': return 'no sessions in this repo in the window';
   }
@@ -53,6 +54,7 @@ export function renderVerdictsTerminal(v: VerdictView): string {
   out.push(head.join(sep));
   out.push(dim(`rookery ${v.rookery.version}${v.rookery.scannedAt ? ` scan from ${day(new Date(v.rookery.scannedAt))}` : ''}: ${count(r.judged.length, 'skill, command or subagent', 'skills, commands and subagents')} judged`));
   if (r.matchedByName) out.push(dim('Repos matched by folder name. rookery 0.7.2 or later matches them exactly.'));
+  if (r.tokensSavable > 0) out.push(dim(`${compact(r.tokensSavable)} tokens/session on the table, from the retire and merge verdicts below.`));
 
   if (!r.judged.length) {
     out.push('', 'rookery\'s report has no Claude Code, Codex or Gemini CLI skills, commands or subagents to judge.', dim('Scan the repos you work in, plus --local for your own: rookery scan ~/code --local --format json | roost verdicts'), '');
@@ -63,7 +65,8 @@ export function renderVerdictsTerminal(v: VerdictView): string {
     const rows = r.judged.filter((j) => j.verdict === verdict);
     if (!rows.length) continue;
     const [title, meta] = HEADINGS[verdict];
-    out.push('', `${bold(title)} ${bold(rows.length)}  ${dim(meta)}`);
+    const savings = verdict === 'retire' || verdict === 'merge' ? rows.reduce((n, j) => n + (j.preloadTokens ?? 0), 0) : 0;
+    out.push('', `${bold(title)} ${bold(rows.length)}  ${dim(meta)}${savings > 0 ? dim(`  ·  ${compact(savings)} tokens/session`) : ''}`);
     const shown = rows.slice(0, v.top);
     const multi = new Set(r.judged.flatMap((j) => j.agents)).size > 1;
     const tags = (j: Judged) => [...(j.kind === 'skill' ? [] : [j.kind]), ...(multi ? [j.agents.map((a) => short[a]).join('+')] : [])];
@@ -100,6 +103,7 @@ export function renderVerdictsJson(v: VerdictView): string {
     last: v.last?.toISOString() ?? null,
     rookery: v.rookery,
     matchedByName: v.report.matchedByName,
+    tokensSavable: v.report.tokensSavable,
     verdicts: v.report.judged.map((j) => ({ ...j, lastUsed: j.lastUsed?.toISOString() ?? null })),
     unmatched: v.report.unmatched,
     notJudged: v.report.notJudged,

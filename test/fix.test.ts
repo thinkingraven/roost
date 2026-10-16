@@ -62,6 +62,28 @@ test('planFix: retire and merge verdicts become file changes, grouped by resolve
   assert.equal(api.changes[0].absolutePath, join(apiRoot, '.claude/skills/scratch/SKILL.md'));
 });
 
+test('planFix: carries each change\'s preloadTokens and sums them as tokensSavable', () => {
+  const kept = art('~/code/shop', '.claude/skills/code-review/SKILL.md', 'code-review', { preloadTokens: 40 });
+  const dup = art('~/code/shop', '.claude/skills/old-review/SKILL.md', 'old-review', { preloadTokens: 60 });
+  const unused = art('~/code/shop', '.claude/skills/draft-notes/SKILL.md', 'draft-notes', { preloadTokens: 25 });
+  const r = report([kept, dup, unused], { clusters: [{ members: [{ artifactId: kept.id }, { artifactId: dup.id }] }] });
+  const verdicts = judge(r, [session(`${HOME}/code/shop`, { 'code-review': 3 })], HOME);
+  const plan = planFix(r, verdicts, HOME);
+  const shop = plan.repos[0];
+  assert.equal(shop.changes.find((c) => c.name === 'old-review')!.preloadTokens, 60);
+  assert.equal(shop.changes.find((c) => c.name === 'draft-notes')!.preloadTokens, 25);
+  assert.equal(plan.tokensSavable, 85, 'the two removed files, not the kept winner');
+});
+
+test('planFix: a rookery scan with no preloadTokens leaves it undefined and tokensSavable at 0', () => {
+  const unused = art('~/code/shop', '.claude/skills/draft-notes/SKILL.md', 'draft-notes');
+  const r = report([unused]);
+  const verdicts = judge(r, [session(`${HOME}/code/shop`)], HOME);
+  const plan = planFix(r, verdicts, HOME);
+  assert.equal(plan.repos[0].changes[0].preloadTokens, undefined);
+  assert.equal(plan.tokensSavable, 0);
+});
+
 test('planFix: personal skills are counted, never planned for removal', () => {
   const personal = art('~', '.claude/skills/my-thing/SKILL.md', 'my-thing');
   const r = report([personal]);
@@ -115,6 +137,7 @@ test('applyFix: creates a branch, removes the planned files, and commits — nev
   });
   const plan = {
     personalSkipped: 0,
+    tokensSavable: 0,
     repos: [{
       repoRoot: repo,
       changes: [
@@ -142,7 +165,7 @@ test('applyFix: creates a branch, removes the planned files, and commits — nev
 test('applyFix: a dirty working tree is skipped, not force-committed into', () => {
   const repo = gitRepo({ '.claude/skills/x/SKILL.md': 'x' });
   writeFileSync(join(repo, 'untracked.txt'), 'wip');
-  const plan = { personalSkipped: 0, repos: [{ repoRoot: repo, changes: [{ verdict: 'retire' as const, name: 'x', kind: 'skill', relPath: '.claude/skills/x/SKILL.md', absolutePath: join(repo, '.claude/skills/x/SKILL.md'), reason: 'not used in 1 session it was available' }] }] };
+  const plan = { personalSkipped: 0, tokensSavable: 0, repos: [{ repoRoot: repo, changes: [{ verdict: 'retire' as const, name: 'x', kind: 'skill', relPath: '.claude/skills/x/SKILL.md', absolutePath: join(repo, '.claude/skills/x/SKILL.md'), reason: 'not used in 1 session it was available' }] }] };
   const result = applyFix(plan);
   assert.equal(result.repos[0].repoSkipReason, 'uncommitted changes — commit or stash first');
   assert.equal(result.repos[0].applied.length, 0);
@@ -153,14 +176,14 @@ test('applyFix: not a git repository is skipped cleanly', () => {
   const dir = mkdtempSync(join(tmpdir(), 'roost-fix-notgit-'));
   mkdirSync(join(dir, '.claude/skills/x'), { recursive: true });
   writeFileSync(join(dir, '.claude/skills/x/SKILL.md'), 'x');
-  const plan = { personalSkipped: 0, repos: [{ repoRoot: dir, changes: [{ verdict: 'retire' as const, name: 'x', kind: 'skill', relPath: '.claude/skills/x/SKILL.md', absolutePath: join(dir, '.claude/skills/x/SKILL.md'), reason: 'r' }] }] };
+  const plan = { personalSkipped: 0, tokensSavable: 0, repos: [{ repoRoot: dir, changes: [{ verdict: 'retire' as const, name: 'x', kind: 'skill', relPath: '.claude/skills/x/SKILL.md', absolutePath: join(dir, '.claude/skills/x/SKILL.md'), reason: 'r' }] }] };
   const result = applyFix(plan);
   assert.equal(result.repos[0].repoSkipReason, 'not a git repository');
 });
 
 test('applyFix: a file already gone is skipped by name, without touching the repo', () => {
   const repo = gitRepo({ '.claude/skills/x/SKILL.md': 'x' });
-  const plan = { personalSkipped: 0, repos: [{ repoRoot: repo, changes: [{ verdict: 'retire' as const, name: 'ghost', kind: 'skill', relPath: '.claude/skills/ghost/SKILL.md', absolutePath: join(repo, '.claude/skills/ghost/SKILL.md'), reason: 'r' }] }] };
+  const plan = { personalSkipped: 0, tokensSavable: 0, repos: [{ repoRoot: repo, changes: [{ verdict: 'retire' as const, name: 'ghost', kind: 'skill', relPath: '.claude/skills/ghost/SKILL.md', absolutePath: join(repo, '.claude/skills/ghost/SKILL.md'), reason: 'r' }] }] };
   const result = applyFix(plan);
   assert.equal(result.repos[0].applied.length, 0);
   assert.equal(result.repos[0].skipped.length, 1);
@@ -171,9 +194,9 @@ test('applyFix: a file already gone is skipped by name, without touching the rep
 test('applyFix: a second run picks a free branch name instead of colliding', () => {
   const repo = gitRepo({ '.claude/skills/a/SKILL.md': 'a', '.claude/skills/b/SKILL.md': 'b' });
   const changeFor = (name: string) => ({ verdict: 'retire' as const, name, kind: 'skill', relPath: `.claude/skills/${name}/SKILL.md`, absolutePath: join(repo, `.claude/skills/${name}/SKILL.md`), reason: 'r' });
-  const first = applyFix({ personalSkipped: 0, repos: [{ repoRoot: repo, changes: [changeFor('a')] }] });
+  const first = applyFix({ personalSkipped: 0, tokensSavable: 0, repos: [{ repoRoot: repo, changes: [changeFor('a')] }] });
   execFileSync('git', ['-C', repo, 'checkout', 'main', '-q']);
-  const second = applyFix({ personalSkipped: 0, repos: [{ repoRoot: repo, changes: [changeFor('b')] }] });
+  const second = applyFix({ personalSkipped: 0, tokensSavable: 0, repos: [{ repoRoot: repo, changes: [changeFor('b')] }] });
   assert.notEqual(first.repos[0].branch, second.repos[0].branch);
   assert.match(second.repos[0].branch!, /-2$/);
 });
@@ -223,6 +246,35 @@ test('cli: roost verdicts --fix previews without touching the repo; --write appl
   assert.match(applied.stdout, /git push -u origin.*&&\s*gh pr create/, 'suggests the command; fix-apply.ts never shells out to anything but git');
   assert.notEqual(currentBranch(repo), 'main');
   assert.ok(!execFileSync('git', ['-C', repo, 'ls-files'], { encoding: 'utf8' }).includes('old-review'));
+});
+
+test('cli: roost verdicts --fix previews and --write applies report the tokens rookery\'s preloadTokens says this would save', () => {
+  const repo = gitRepo({
+    '.claude/skills/code-review/SKILL.md': 'keep',
+    '.claude/skills/old-review/SKILL.md': 'dup',
+  });
+  const home = fixtureHome(repo);
+  const rookery = JSON.stringify({
+    tool: { name: 'rookery', version: '0.8.0' }, scannedAt: '2026-10-16T00:00:00Z',
+    artifacts: [
+      { id: 'a1', repo: 'r', repoRoot: repo, relPath: '.claude/skills/code-review/SKILL.md', agent: 'claude-code', kind: 'skill', name: 'code-review', preloadTokens: 40 },
+      { id: 'a2', repo: 'r', repoRoot: repo, relPath: '.claude/skills/old-review/SKILL.md', agent: 'claude-code', kind: 'skill', name: 'old-review', preloadTokens: 70 },
+    ],
+    findings: [],
+    clusters: [{ members: [{ artifactId: 'a1' }, { artifactId: 'a2' }] }],
+  });
+
+  const preview = runWithInput(rookery, 'verdicts', '--home', home, '--since', 'all', '--fix');
+  assert.equal(preview.status, 0);
+  assert.match(preview.stdout, /ready to branch\s+·\s+70 tokens\/session/);
+  assert.match(preview.stdout, /old-review\/SKILL\.md.*\(70 tokens\/session\)/);
+
+  const applied = runWithInput(rookery, 'verdicts', '--home', home, '--since', 'all', '--fix', '--write');
+  assert.equal(applied.status, 0);
+  assert.match(applied.stdout, /1 file removed and committed\s+·\s+70 tokens\/session/);
+  assert.match(applied.stdout, /1 of 1 repo updated, 70 tokens\/session saved\. Nothing was pushed\./);
+  const log = execFileSync('git', ['-C', repo, 'log', '-1', '--format=%B'], { encoding: 'utf8' });
+  assert.match(log, /saves ~70 tokens\/session/);
 });
 
 test('cli: --write without --fix, and --fix on a command other than verdicts, both fail', () => {

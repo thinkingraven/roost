@@ -1,7 +1,7 @@
 import type { ApplyResult } from '../fix-apply.js';
 import type { FixPlan } from '../fix.js';
 import { VERSION } from '../version.js';
-import { count, tilde } from './format.js';
+import { compact, count, tilde } from './format.js';
 import { style } from './style.js';
 
 export interface FixView {
@@ -21,11 +21,14 @@ export function renderFixPreviewTerminal(v: FixView): string {
     return out.join('\n');
   }
 
-  out.push('', `${bold(count(v.plan.repos.length, 'repo'))} ready to branch`);
+  out.push('', `${bold(count(v.plan.repos.length, 'repo'))} ready to branch${v.plan.tokensSavable > 0 ? dim(`  ·  ${compact(v.plan.tokensSavable)} tokens/session`) : ''}`);
   const width = Math.max(...v.plan.repos.flatMap((r) => r.changes.map((c) => c.relPath.length)));
   for (const repo of v.plan.repos) {
     out.push('', `${bold(tilde(repo.repoRoot, v.home))}  ${dim(count(repo.changes.length, 'file'))}`);
-    for (const c of repo.changes) out.push(`  ${dim('remove')}  ${c.relPath.padEnd(width)}  ${dim(c.reason)}`);
+    for (const c of repo.changes) {
+      const tokens = c.preloadTokens !== undefined ? dim(`  (${compact(c.preloadTokens)} tokens/session)`) : '';
+      out.push(`  ${dim('remove')}  ${c.relPath.padEnd(width)}  ${dim(c.reason)}${tokens}`);
+    }
   }
 
   if (v.plan.personalSkipped) {
@@ -48,6 +51,7 @@ export function renderFixPreviewJson(v: FixView): string {
     write: false,
     repos: v.plan.repos.map((r) => ({ repoRoot: tilde(r.repoRoot, v.home), changes: r.changes })),
     personalSkipped: v.plan.personalSkipped,
+    tokensSavable: v.plan.tokensSavable,
   }, null, 2) + '\n';
 }
 
@@ -65,13 +69,15 @@ export function renderFixApplyTerminal(result: ApplyResult, home: string, color?
     }
     if (r.applied.length) {
       updated++;
-      out.push(`  ${amber('✓')} branch ${bold(r.branch!)}, ${count(r.applied.length, 'file')} removed and committed`);
+      const tokens = r.applied.reduce((n, c) => n + (c.preloadTokens ?? 0), 0);
+      out.push(`  ${amber('✓')} branch ${bold(r.branch!)}, ${count(r.applied.length, 'file')} removed and committed${tokens > 0 ? dim(`  ·  ${compact(tokens)} tokens/session`) : ''}`);
       out.push(`  ${dim(`→ cd ${tilde(r.repoRoot, home)} && git push -u origin ${r.branch} && gh pr create`)}`);
     }
     for (const { change, reason } of r.skipped) out.push(`  ${dim(`✗ ${change.relPath}: ${reason}`)}`);
   }
 
-  out.push('', `${updated} of ${count(result.repos.length, 'repo')} updated. Nothing was pushed.`, '');
+  const tokensSavable = result.repos.flatMap((r) => r.applied).reduce((n, c) => n + (c.preloadTokens ?? 0), 0);
+  out.push('', `${updated} of ${count(result.repos.length, 'repo')} updated${tokensSavable > 0 ? `, ${compact(tokensSavable)} tokens/session saved` : ''}. Nothing was pushed.`, '');
   return out.join('\n');
 }
 
@@ -86,5 +92,6 @@ export function renderFixApplyJson(result: ApplyResult, home: string): string {
       applied: r.applied,
       skipped: r.skipped,
     })),
+    tokensSavable: result.repos.flatMap((r) => r.applied).reduce((n, c) => n + (c.preloadTokens ?? 0), 0),
   }, null, 2) + '\n';
 }
