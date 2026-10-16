@@ -38,23 +38,28 @@ test('planFix: retire and merge verdicts become file changes, grouped by resolve
   const sessions = [session(`${HOME}/code/shop`, { 'code-review': 3 }), session(`${HOME}/code/api`)];
   const verdicts = judge(r, sessions, HOME);
 
+  // planFix resolves `~/` repo roots with node:path join, which normalises to the platform's own
+  // separator (unlike judge()'s own forward-slash-only matching) — build expected paths the same way.
+  const shopRoot = join(HOME, 'code', 'shop');
+  const apiRoot = join(HOME, 'code', 'api');
+
   const plan = planFix(r, verdicts, HOME);
   assert.equal(plan.personalSkipped, 0);
-  assert.deepEqual(plan.repos.map((x) => x.repoRoot).sort(), [`${HOME}/code/api`, `${HOME}/code/shop`].sort());
+  assert.deepEqual(plan.repos.map((x) => x.repoRoot).sort(), [apiRoot, shopRoot].sort());
 
-  const shop = plan.repos.find((x) => x.repoRoot === `${HOME}/code/shop`)!;
+  const shop = plan.repos.find((x) => x.repoRoot === shopRoot)!;
   assert.equal(shop.changes.length, 2);
   const dupChange = shop.changes.find((c) => c.name === 'old-review')!;
   assert.equal(dupChange.verdict, 'merge');
-  assert.equal(dupChange.absolutePath, `${HOME}/code/shop/.claude/skills/old-review/SKILL.md`);
+  assert.equal(dupChange.absolutePath, join(shopRoot, '.claude/skills/old-review/SKILL.md'));
   assert.match(dupChange.reason, /duplicate of .*code-review.*used 3× there/);
   const retireChange = shop.changes.find((c) => c.name === 'draft-notes')!;
   assert.equal(retireChange.verdict, 'retire');
   assert.match(retireChange.reason, /not used in 1 session it was available/);
 
-  const api = plan.repos.find((x) => x.repoRoot === `${HOME}/code/api`)!;
+  const api = plan.repos.find((x) => x.repoRoot === apiRoot)!;
   assert.equal(api.changes.length, 1);
-  assert.equal(api.changes[0].absolutePath, `${HOME}/code/api/.claude/skills/scratch/SKILL.md`);
+  assert.equal(api.changes[0].absolutePath, join(apiRoot, '.claude/skills/scratch/SKILL.md'));
 });
 
 test('planFix: personal skills are counted, never planned for removal', () => {
