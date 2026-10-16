@@ -39,6 +39,8 @@ export type Verdict = 'improve' | 'merge' | 'retire' | 'keep' | 'no-data';
 export const VERDICT_ORDER: Verdict[] = ['improve', 'merge', 'retire', 'keep', 'no-data'];
 
 export interface Judged {
+  /** The rookery artifact id this verdict is about, for joining back to the report (`roost verdicts --fix`). */
+  id: string;
   verdict: Verdict;
   name: string;
   kind: string;
@@ -197,7 +199,7 @@ export function judge(rookery: RookeryReport, sessions: SessionUsage[], home: st
     const found = issues.get(a.id) ?? [];
     const verdict: Verdict = target ? 'merge' : st.scopeSessions === 0 ? 'no-data' : st.uses === 0 ? 'retire' : found.length ? 'improve' : 'keep';
     return {
-      verdict, name: a.name, kind: a.kind, repo: repoLabel(a), relPath: a.relPath,
+      id: a.id, verdict, name: a.name, kind: a.kind, repo: repoLabel(a), relPath: a.relPath,
       uses: st.uses, sessions: st.sessions, scopeSessions: st.scopeSessions, lastUsed: st.lastUsed, issues: found, agents: [...loaders.get(a.id)!],
       ...(target ? { mergeInto: { relPath: target.relPath, repo: repoLabel(target), uses: stats.get(target.id)!.uses } } : {}),
       ...(st.uses === 0 && a.kind === 'skill' && namespaced.has(a.name.toLowerCase()) ? { copyUsed: { name: namespaced.get(a.name.toLowerCase())!.name, uses: namespaced.get(a.name.toLowerCase())!.uses } } : {}),
