@@ -98,6 +98,25 @@ How roost matches them:
 
 rookery 0.7.2 or later matches repos exactly. Older reports are matched by folder name. Use `--since` to change the window. Claude Code keeps 30 days of logs by default (`cleanupPeriodDays`).
 
+### Retire and merge them for you
+
+`--fix` turns the retire and merge verdicts into a plan, one branch per repo:
+
+```bash
+npx @thinkingraven/rookery scan ~/code --local --format json | npx @thinkingraven/roost verdicts --fix
+```
+
+```text
+~/code/shop  2 files
+  remove  .claude/skills/old-review/SKILL.md     duplicate of .claude/skills/code-review/SKILL.md, used 40× there
+  remove  .claude/skills/draft-notes/SKILL.md    not used in 30 sessions it was available
+
+Preview only: nothing changed. Run with --write to create one branch per repo above and
+commit the removals (git only: never pushes, never opens a pull request — that part is on you).
+```
+
+Add `--write` to actually do it: one branch per repo (`roost/retire-skills-<date>`), `git rm` the files, one commit. A repo with uncommitted changes is skipped, not committed into. roost never pushes and never calls `gh` or any hosting API — push and open the pull request yourself, the same way you always do.
+
 ## Decisions: what rookery's hook blocked
 
 [rookery's runtime hook](https://github.com/thinkingraven/rookery/blob/main/docs/policy.md#rookery-hook-enforce-the-policy-while-agents-run) checks every tool call against a repo's `.rookery.yml` while an agent works, and logs each deny or warn to `~/.rookery/decisions/`. `roost decisions` reads that log:
@@ -231,6 +250,7 @@ flowchart LR
 ## Privacy
 
 - Runs entirely on your machine, with no telemetry. The one exception is opt-in: `roost export --send` posts counts to the OpenTelemetry endpoint you configure, after an explicit `ROOST_EXPORT=on`. Nothing else uses the network.
+- `roost verdicts --fix --write` is the only command that writes to your repos, and only with `--write`: a local branch, `git rm`, one commit. It never pushes and never calls `gh` or any hosting API.
 - `roost sources` only lists file names and dates; it never opens your logs.
 - `roost usage` parses log lines to find tool calls, but keeps only names, counts, dates and token numbers. Your prompts, the agents' replies, tool inputs and tool results never reach a report, and tests check that on every change.
 - Paths under your home folder are shown as `~/…`.
@@ -265,7 +285,7 @@ Today roost reads one machine. Team summaries are on the roadmap: each person ex
 ## Roadmap
 
 - **Context tax by artifact**: `roost context` measures the total; attributing it to a specific skill, rules file or MCP server needs a rookery field sized for preload (a skill's description alone, an MCP server's tool-definition schemas), not its current whole-file estimate
-- **Verdicts, next steps**: the tokens each change saves, and a pull request that retires or merges for you
+- **Verdicts, token savings**: `--fix` branches and commits the removals (0.5.0); the tokens each one saves needs a per-skill size rookery doesn't have yet (see "Context tax by artifact" above)
 - **Team summaries**: counts-only exports merged into one team report
 - **HTML and Markdown reports**, in rookery's style
 

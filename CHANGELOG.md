@@ -2,6 +2,13 @@
 
 All notable changes to roost are listed here. This project follows [semantic versioning](https://semver.org).
 
+## 0.5.0 — 2026-10-16
+
+- **`roost verdicts --fix`**: turns retire and merge verdicts into a plan — the files to remove, one group per repo, with why (never used in N sessions, or a duplicate of the copy that's used). `--write` applies it: one branch per repo (`roost/retire-skills-<date>`), `git rm` the files, one commit.
+  - **Never pushes, never calls `gh` or any hosting API.** The only command that writes to a repo, and the only place roost shells out to anything — `git`, locally. Pushing and opening the pull request stays a manual step.
+  - A repo with uncommitted changes is skipped, not committed into. A file already gone (removed by hand, or a stale rookery scan) is skipped by name, not an error. A branch name collision gets `-2`, `-3`, and so on.
+  - Personal skills (`~/.claude/skills/…`) have no repo to branch from, so they're counted and left alone.
+
 ## 0.4.0 — 2026-10-16
 
 - **`roost decisions`**: a readable report of what rookery's runtime hook (`rookery hook`) denied or warned about — by rule, agent and repo, with one example subject per rule. `roost export` already turns the same log into `rookery.policy` rows for a dashboard; this is the local, no-setup view of it. `--since`, `--top`, `--format json`.
