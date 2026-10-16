@@ -39,4 +39,5 @@ for (const [name, seed] of TEAM) {
 
 const names = TEAM.map(([name]) => name).join(' ');
 process.stdout.write(`\nWrote ${TEAM.length} demo teammates under ${dir}. Send them all as one team, e.g.:\n`
-  + `  for p in ${names}; do ROOST_EXPORT=on ROOST_TEAM=acme npx @thinkingraven/roost export --home ${dir}/$p --since all --send; done\n`);
+  + `  for p in ${names}; do ROOST_EXPORT=on ROOST_TEAM=acme npx @thinkingraven/roost export --home ${dir}/$p --send; done\n`
+  + `(no --since all here: most log stores reject entries older than about a week, so the default window is what actually lands)\n`);

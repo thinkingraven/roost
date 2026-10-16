@@ -73,9 +73,11 @@ New rows are queryable within an hour or two. Loki writes rows dated to an earli
 
 ```bash
 for p in priya marcus lena devon sofia; do
-  npx @thinkingraven/roost export --home /tmp/acme-team/$p --since all --send
+  npx @thinkingraven/roost export --home /tmp/acme-team/$p --send
 done
 ```
+
+No `--since all` here: the demo's dates are fresh (recomputed every run up to yesterday), but most log stores still reject entries more than about a week old, so the default window — which only reaches that far back — is what actually lands.
 
 It's made-up data end to end, so it's safe to share the dashboard (or a [snapshot](https://grafana.com/docs/grafana/latest/dashboards/share-dashboards-panels/#dashboard-snapshots) of it) outside the company too.
 
